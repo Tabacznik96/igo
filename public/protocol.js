@@ -50,6 +50,12 @@ const PROTOCOL_CONFIG = {
       },
       {
         id: 'exercise', name: '5. Ćwiczenie', maxPoints: 50, type: 'exercise',
+        criticalErrors: [
+          { id: 'crit01', name: 'Pozostawienie poszkodowanego/ratownika w strefie zagrożenia' },
+          { id: 'crit02', name: 'Rażące naruszenie BHP – bezpośrednie zagrożenie życia lub zdrowia' },
+          { id: 'crit03', name: 'Niewykonanie nakazu przerwania ćwiczenia przez prowadzącego' },
+          { id: 'crit04', name: 'Całkowita utrata kontroli nad działaniem gaśniczym / akcją ratowniczą' }
+        ],
         errors: [
           { id: 'ex01', name: 'Brak meldunku dowódcy akcji o gotowości sił i środków',    penalty: 2 },
           { id: 'ex02', name: 'Brak lub błędne rozpoznanie miejsca zdarzenia',             penalty: 2 },
@@ -113,6 +119,12 @@ const PROTOCOL_CONFIG = {
       },
       {
         id: 'exercise', name: '4. Ćwiczenie', maxPoints: 40, type: 'exercise',
+        criticalErrors: [
+          { id: 'crit01', name: 'Pozostawienie poszkodowanego/ratownika w strefie zagrożenia' },
+          { id: 'crit02', name: 'Rażące naruszenie BHP – bezpośrednie zagrożenie życia lub zdrowia' },
+          { id: 'crit03', name: 'Niewykonanie nakazu przerwania ćwiczenia przez prowadzącego' },
+          { id: 'crit04', name: 'Całkowita utrata kontroli nad działaniem gaśniczym / akcją ratowniczą' }
+        ],
         errors: [
           { id: 'ex01', name: 'Brak meldunku o gotowości sił i środków',         penalty: 2 },
           { id: 'ex02', name: 'Brak rozpoznania miejsca zdarzenia',               penalty: 2 },
@@ -190,6 +202,12 @@ const PROTOCOL_CONFIG = {
       },
       {
         id: 'exercise', name: '7. Ćwiczenie (symulacja zdarzeń)', maxPoints: 32, type: 'exercise',
+        criticalErrors: [
+          { id: 'crit01', name: 'Całkowity brak reakcji na zgłoszenie zdarzenia (niepodjęcie działań)' },
+          { id: 'crit02', name: 'Dysponowanie sił i środków niezgodne z planem – brak dysponowania do zdarzenia' },
+          { id: 'crit03', name: 'Niewykonanie nakazu przerwania symulacji przez prowadzącego' },
+          { id: 'crit04', name: 'Rażące naruszenie przepisów dot. działania SK – zagrożenie dla ludzi' }
+        ],
         errors: [
           { id: 'ex01', name: 'Brak lub błędne przyjęcie zgłoszenia o zdarzeniu',             penalty: 3 },
           { id: 'ex02', name: 'Nieprawidłowe dysponowanie sił i środków do zdarzenia',        penalty: 4 },
@@ -356,7 +374,9 @@ function initSectionData() {
     } else if (sec.type === 'exercise') {
       const errors = {};
       for (const e of sec.errors) errors[e.id] = { checked: false, count: 1 };
-      sectionData[sec.id] = { errors, extraErrors: [], points: sec.maxPoints };
+      const criticalErrors = {};
+      for (const e of (sec.criticalErrors || [])) criticalErrors[e.id] = false;
+      sectionData[sec.id] = { errors, criticalErrors, extraErrors: [], points: sec.maxPoints };
     }
   }
 }
@@ -744,11 +764,28 @@ function testManualInput(secId) {
 
 // ── EXERCISE ────────────────────────────────────────────────────────────────
 function renderExercise(sec, sd) {
+  const critErrors = sec.criticalErrors || [];
+  const anyCritical = critErrors.some(e => sd.criticalErrors && sd.criticalErrors[e.id]);
+
+  const critRows = critErrors.map(e => {
+    const checked = sd.criticalErrors && sd.criticalErrors[e.id];
+    return `
+    <div class="ex-row ${checked ? 'ex-checked' : ''}" style="${checked ? 'border-color:#c0392b;background:#f8d7da;' : 'border-color:#e74c3c;'}">
+      <label class="ex-label" style="color:${checked ? '#721c24' : '#c0392b'};font-weight:600;">
+        <input type="checkbox" ${checked ? 'checked' : ''} onchange="exCritCheck('${sec.id}','${e.id}',this.checked)">
+        <span>⛔ ${e.name}</span>
+      </label>
+      <div class="ex-penalty">
+        <span class="badge badge-fail" style="background:#c0392b;">DYSKWALIFIKACJA</span>
+      </div>
+    </div>`;
+  }).join('');
+
   const errorRows = sec.errors.map(e => {
     const checked = sd.errors[e.id]?.checked;
     const cnt = sd.errors[e.id]?.count || 1;
     return `
-    <div class="ex-row ${checked ? 'ex-checked' : ''}">
+    <div class="ex-row ${checked ? 'ex-checked' : ''}" ${anyCritical ? 'style="opacity:0.5;pointer-events:none;"' : ''}>
       <label class="ex-label">
         <input type="checkbox" ${checked ? 'checked' : ''} onchange="exCheck('${sec.id}','${e.id}',this.checked)">
         <span>${e.name}</span>
@@ -762,7 +799,7 @@ function renderExercise(sec, sd) {
   }).join('');
 
   const extraRows = (sd.extraErrors||[]).map((e, i) => `
-    <div class="ex-row ex-extra ex-checked">
+    <div class="ex-row ex-extra ex-checked" ${anyCritical ? 'style="opacity:0.5;pointer-events:none;"' : ''}>
       <input type="text" class="form-control ex-extra-name" value="${esc(e.name)}"
         oninput="exExtraName('${sec.id}',${i},this.value)" placeholder="Opis uchybienia">
       <div class="ex-penalty">
@@ -772,16 +809,29 @@ function renderExercise(sec, sd) {
       </div>
     </div>`).join('');
 
+  const critBanner = anyCritical ? `
+    <div style="background:#c0392b;color:#fff;padding:12px 16px;border-radius:6px;font-size:1rem;font-weight:700;text-align:center;margin-bottom:12px;">
+      ⛔ ĆWICZENIE ZAKOŃCZONE – BŁĄD KRYTYCZNY – 0 PKT
+    </div>` : '';
+
   return `
   <div class="ex-wrap">
+    ${critErrors.length ? `
+    <div style="margin-bottom:16px;">
+      <div style="font-weight:700;color:#c0392b;font-size:0.9rem;margin-bottom:6px;padding:6px 10px;background:#fff0f0;border-radius:4px;border:1px solid #e74c3c;">
+        ⛔ BŁĘDY KRYTYCZNE – zaznaczenie któregokolwiek kończy ćwiczenie z wynikiem 0 pkt
+      </div>
+      <div id="exCritList">${critRows}</div>
+    </div>` : ''}
+    ${critBanner}
     <p style="color:var(--dark-gray);font-size:0.85rem;margin-bottom:12px;">
       Start: <strong>${sec.maxPoints} pkt</strong>. Zaznacz stwierdzone uchybienia – punkty będą odejmowane automatycznie.
     </p>
     <div id="exList">${errorRows}</div>
     <div id="exExtraList">${extraRows}</div>
-    <button class="btn btn-outline btn-sm" onclick="exAddExtra('${sec.id}')" style="margin-top:8px;">➕ Dodaj własne uchybienie</button>
+    <button class="btn btn-outline btn-sm" onclick="exAddExtra('${sec.id}')" style="margin-top:8px;" ${anyCritical ? 'disabled' : ''}>➕ Dodaj własne uchybienie</button>
     <div class="ex-result" id="exResult">
-      <div class="points-big" id="exPtsBig">${sd.points} pkt</div>
+      <div class="points-big" id="exPtsBig" style="${anyCritical ? 'color:#c0392b;' : ''}">${sd.points} pkt</div>
       <div id="exPenaltySum"></div>
     </div>
     <div class="form-group" style="margin-top:16px;">
@@ -794,6 +844,20 @@ function renderExercise(sec, sd) {
 function calcExercise(secId) {
   const sec = PROTOCOL_CONFIG[unitType].sections.find(s => s.id === secId);
   const sd  = sectionData[secId];
+
+  const anyCritical = (sec.criticalErrors || []).some(e => sd.criticalErrors && sd.criticalErrors[e.id]);
+  if (anyCritical) {
+    sd.points = 0;
+    const el = document.getElementById('exPtsBig');
+    if (el) { el.textContent = '0 pkt'; el.style.color = '#c0392b'; }
+    const pen = document.getElementById('exPenaltySum');
+    if (pen) pen.textContent = '⛔ Błąd krytyczny – ćwiczenie zakończone';
+    updateSecPts(sec, sd);
+    updateScoreBar();
+    autoSave();
+    return;
+  }
+
   let penalty = 0;
   for (const e of sec.errors) {
     if (sd.errors[e.id]?.checked) penalty += e.penalty * (sd.errors[e.id].count || 1);
@@ -803,12 +867,19 @@ function calcExercise(secId) {
   }
   sd.points = Math.max(0, sec.maxPoints - penalty);
   const el = document.getElementById('exPtsBig');
-  if (el) el.textContent = sd.points + ' pkt';
+  if (el) { el.textContent = sd.points + ' pkt'; el.style.color = ''; }
   const pen = document.getElementById('exPenaltySum');
   if (pen) pen.textContent = penalty > 0 ? `Odliczono: –${penalty} pkt` : '';
   updateSecPts(sec, sd);
   updateScoreBar();
   autoSave();
+}
+
+function exCritCheck(secId, errorId, checked) {
+  if (!sectionData[secId].criticalErrors) sectionData[secId].criticalErrors = {};
+  sectionData[secId].criticalErrors[errorId] = checked;
+  calcExercise(secId);
+  renderSection(secId);
 }
 
 function exCheck(secId, errorId, checked) {
@@ -946,15 +1017,15 @@ async function saveProtocol() {
 }
 
 function openPrint() {
-  if (!protocolId) { alert('Najpierw zapisz protokół'); return; }
+  if (!protocolId) { showSetupError('Najpierw zapisz protokół'); return; }
   sessionStorage.setItem('sessionCreds', JSON.stringify({ u: authU, h: authH }));
-  window.open(`/protocol/print/${protocolId}`, '_blank');
+  window.open(`/protocol/print/${protocolId}?u=${encodeURIComponent(authU)}&h=${encodeURIComponent(authH)}`, '_blank');
 }
 
 function goBack() {
   if (sessionId) {
     sessionStorage.setItem('sessionCreds', JSON.stringify({ u: authU, h: authH }));
-    window.location.href = `/session/${sessionId}`;
+    window.location.href = `/session/${sessionId}?u=${encodeURIComponent(authU)}&h=${encodeURIComponent(authH)}`;
   } else {
     window.location.href = '/';
   }
