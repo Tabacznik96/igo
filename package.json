@@ -1,0 +1,14 @@
+{
+  "name": "psp-inspekcja",
+  "version": "1.0.0",
+  "description": "PSP Inspekcja Gotowości Operacyjnej",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.22.2",
+    "qrcode": "^1.5.4",
+    "sql.js": "^1.12.0"
+  }
+}

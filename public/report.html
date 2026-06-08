@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Raport – PSP Inspekcja</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    .report-page { max-width: 1000px; margin: 0 auto; padding: 0 16px 40px; }
+    .print-btn-bar {
+      background: var(--navy);
+      padding: 10px 16px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .score-ok { color: var(--green); font-weight: 700; }
+    .score-fail { color: var(--red); font-weight: 700; }
+    .section-errors { margin-top: 6px; }
+    .section-error-tag {
+      display: inline-block;
+      background: #fff3cd;
+      color: #856404;
+      border-radius: 10px;
+      padding: 2px 8px;
+      font-size: 0.78rem;
+      margin: 2px 2px 2px 0;
+    }
+    @media print {
+      .print-btn-bar { display: none !important; }
+      .report-page { padding: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="print-btn-bar no-print">
+  <button class="btn btn-gold" onclick="window.print()">🖨️ Drukuj raport</button>
+  <button class="btn btn-outline" style="color:white;border-color:white;" onclick="history.back()">← Wróć</button>
+  <span style="color:rgba(255,255,255,0.7);font-size:0.85rem;margin-left:auto;">PSP – Raport inspekcji</span>
+</div>
+
+<div class="report-page">
+
+  <div class="report-header">
+    <h1>INSPEKCJA GOTOWOŚCI OPERACYJNEJ</h1>
+    <div class="meta">
+      <span id="reportDate"></span> &nbsp;|&nbsp;
+      <span>Sesja: <strong id="reportSessionId"></strong></span>
+    </div>
+    <div class="meta" style="margin-top:4px;">Państwowa Straż Pożarna</div>
+  </div>
+
+  <div id="loadingView" style="text-align:center;padding:40px;">
+    <div style="font-size:2rem;margin-bottom:12px;">⏳</div>
+    <p>Ładowanie raportu...</p>
+  </div>
+
+  <div id="errorView" style="display:none;padding:20px;">
+    <div class="alert alert-danger" id="errorMsg"></div>
+  </div>
+
+  <div id="reportContent" style="display:none;">
+
+    <!-- Summary stats -->
+    <div class="card">
+      <div class="card-title">📊 Podsumowanie</div>
+      <div id="summaryContent"></div>
+    </div>
+
+    <!-- Results table -->
+    <div class="card">
+      <div class="card-title">📋 Lista uczestników</div>
+      <div class="table-wrap">
+        <table id="resultsTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Imię i nazwisko</th>
+              <th>Jednostka</th>
+              <th>Kategoria</th>
+              <th>Wynik</th>
+              <th>%</th>
+              <th>Data/Czas</th>
+            </tr>
+          </thead>
+          <tbody id="resultsBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Dowódcy breakdown -->
+    <div id="dowodcySection" style="display:none;" class="card page-break">
+      <div class="card-title">📚 Analiza tematyczna – Dowódcy</div>
+      <p style="font-size:0.85rem;color:var(--dark-gray);margin-bottom:16px;">
+        Poniżej zestawienie błędów według tematyki dla kategorii Dowódcy.
+      </p>
+      <div id="dowodcyBreakdown"></div>
+    </div>
+
+  </div>
+</div>
+
+<script src="/report.js"></script>
+</body>
+</html>

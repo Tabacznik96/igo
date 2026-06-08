@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PSP – Panel Administratora</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="app-header">
+  <div class="logo">🔥</div>
+  <div class="title-block">
+    <h1>Inspekcja Gotowości Operacyjnej</h1>
+    <p>Państwowa Straż Pożarna – Panel Administratora</p>
+  </div>
+</header>
+
+<!-- LOGIN SCREEN -->
+<div id="loginScreen" class="login-wrap">
+  <div class="login-card">
+    <h2>Logowanie</h2>
+    <p>Panel administratora systemu inspekcji PSP</p>
+    <div id="loginError" class="alert alert-danger" style="display:none"></div>
+    <div class="form-group">
+      <label for="passwordInput">Hasło administratora</label>
+      <input type="password" id="passwordInput" class="form-control" placeholder="Wprowadź hasło" autocomplete="current-password">
+    </div>
+    <button class="btn btn-danger btn-block" id="loginBtn" onclick="doLogin()">
+      🔐 Zaloguj się
+    </button>
+  </div>
+</div>
+
+<!-- ADMIN PANEL -->
+<div id="adminPanel" style="display:none">
+  <div class="container-wide">
+
+    <!-- Top bar -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+      <div>
+        <h2 style="color:var(--navy); font-size:1.2rem;">Panel administracyjny</h2>
+        <p style="font-size:0.85rem; color:var(--dark-gray);">Zarządzanie sesjami inspekcji</p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-danger" onclick="generateSession()">
+          ➕ Generuj nową inspekcję
+        </button>
+        <button class="btn btn-outline btn-sm" onclick="logout()">
+          🚪 Wyloguj
+        </button>
+      </div>
+    </div>
+
+    <div id="adminError" class="alert alert-danger" style="display:none"></div>
+    <div id="adminInfo" class="alert alert-success" style="display:none"></div>
+
+    <!-- Sessions -->
+    <div class="card">
+      <div class="card-title">📋 Sesje inspekcji</div>
+      <div id="sessionsList">
+        <div class="empty-state">
+          <div class="icon">📂</div>
+          <div>Ładowanie sesji...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- All Results -->
+    <div class="card">
+      <div class="card-title">📊 Wyniki testów</div>
+      <div id="resultsList">
+        <div class="empty-state">
+          <div class="icon">📝</div>
+          <div>Ładowanie wyników...</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- QR Modal -->
+<div class="modal-overlay" id="qrModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>📱 Kody QR – Nowa inspekcja</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="sessionInfo" class="alert alert-info" style="margin-bottom:16px"></div>
+      <p style="font-size:0.9rem; color:var(--dark-gray); margin-bottom:16px;">
+        Wydrukuj lub pokaż poniższe kody QR uczestnikom inspekcji. Każdy kod przeznaczony jest dla innej kategorii stanowisk.
+      </p>
+      <div class="qr-grid" id="qrGrid"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="window.print()">🖨️ Drukuj kody QR</button>
+        <button class="btn btn-outline" onclick="closeModal()">Zamknij</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="admin.js"></script>
+</body>
+</html>
