@@ -193,7 +193,8 @@
         </div>
         <input type="hidden" id="unitTypeSelect" value="jrg">
       </div>
-      <button class="btn btn-danger btn-block" onclick="startProtocol()">▶ Rozpocznij protokół</button>
+      <div id="setupError" style="display:none;background:#f8d7da;border:1px solid #f5c6cb;padding:10px 14px;border-radius:6px;color:#721c24;margin-bottom:12px;font-size:0.9rem;"></div>
+      <button class="btn btn-danger btn-block" id="startBtn" onclick="startProtocol()">▶ Rozpocznij protokół</button>
     </div>
   </div>
 </div>
@@ -240,7 +241,7 @@
 
 </div>
 
-<script src="protocol.js?v=4"></script>
+<script src="protocol.js?v=5"></script>
 <script>
 function toggleSecNav() {
   document.getElementById('sectionNav').classList.toggle('open');

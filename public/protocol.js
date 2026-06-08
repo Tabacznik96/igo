@@ -274,12 +274,20 @@ async function showSetupScreen() {
   } catch(e) {}
 }
 
+function showSetupError(msg) {
+  const el = document.getElementById('setupError');
+  if (el) { el.textContent = msg; el.style.display = 'block'; }
+}
+
 async function startProtocol() {
+  const errEl = document.getElementById('setupError');
+  if (errEl) errEl.style.display = 'none';
+
   unitName = document.getElementById('unitNameInput').value.trim();
   unitType = document.getElementById('unitTypeSelect').value;
-  if (!unitName) { alert('Podaj nazwę jednostki'); return; }
+  if (!unitName) { showSetupError('Podaj nazwę jednostki'); return; }
 
-  const btn = document.querySelector('[onclick="startProtocol()"]');
+  const btn = document.getElementById('startBtn');
   if (btn) { btn.disabled = true; btn.textContent = 'Tworzenie…'; }
 
   try {
@@ -289,13 +297,13 @@ async function startProtocol() {
       body: JSON.stringify({ unit: unitName, unit_type: unitType })
     });
     const d = await r.json();
-    if (!d.ok) { alert('Błąd: ' + (d.error || 'Nie udało się utworzyć protokołu')); return; }
+    if (!d.ok) { showSetupError('Błąd ' + r.status + ': ' + (d.error || 'Nie udało się utworzyć protokołu')); return; }
     protocolId = d.id;
     initSectionData();
     await loadSessionResults();
     renderMainScreen();
   } catch(e) {
-    alert('Błąd połączenia z serwerem: ' + e.message);
+    showSetupError('Błąd połączenia: ' + e.message);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '▶ Rozpocznij protokół'; }
   }
