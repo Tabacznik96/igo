@@ -235,10 +235,16 @@ let swRunning  = false;
 
 // ── init ───────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
-  try {
-    const c = JSON.parse(sessionStorage.getItem('sessionCreds') || '{}');
-    authU = c.u || ''; authH = c.h || '';
-  } catch(e) {}
+  const params = new URLSearchParams(location.search);
+  if (params.get('u') && params.get('h')) {
+    authU = params.get('u');
+    authH = params.get('h');
+  } else {
+    try {
+      const c = JSON.parse(sessionStorage.getItem('sessionCreds') || '{}');
+      authU = c.u || ''; authH = c.h || '';
+    } catch(e) {}
+  }
 
   const path = location.pathname;
   if (path.startsWith('/protocol/new/')) {

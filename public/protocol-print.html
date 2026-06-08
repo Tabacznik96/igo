@@ -96,15 +96,19 @@
 <script>
 // ── PRINT RENDER ─────────────────────────────────────────────────────────
 (async function() {
-  let authU = '', authH = '';
-  try {
-    const c = JSON.parse(sessionStorage.getItem('sessionCreds') || '{}');
-    authU = c.u || ''; authH = c.h || '';
-  } catch(e) {}
+  const params = new URLSearchParams(location.search);
+  let authU = params.get('u') || '';
+  let authH_val = params.get('h') || '';
+  if (!authU) {
+    try {
+      const c = JSON.parse(sessionStorage.getItem('sessionCreds') || '{}');
+      authU = c.u || ''; authH_val = c.h || '';
+    } catch(e) {}
+  }
 
   const protocolId = location.pathname.split('/')[3];
 
-  function hdr() { return { 'x-username': authU, 'x-password-hash': authH }; }
+  function hdr() { return { 'x-username': authU, 'x-password-hash': authH_val }; }
 
   let proto;
   try {

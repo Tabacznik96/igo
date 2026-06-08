@@ -95,18 +95,15 @@ const UNIT_TYPE_LABELS = { jrg: 'JRG', osp: 'OSP', sk: 'SK' };
 const GRADE_COLORS = { 6:'#27ae60', 5:'#2ecc71', 4:'#3498db', 3:'#f39c12', 2:'#e67e22', 1:'#e74c3c' };
 
 function openNewProtocol() {
-  sessionStorage.setItem('sessionCreds', JSON.stringify({ u, h }));
-  window.open(`/protocol/new/${sessionId}`, '_blank');
+  window.open(`/protocol/new/${sessionId}?u=${encodeURIComponent(u)}&h=${encodeURIComponent(h)}`, '_blank');
 }
 
 function openProtocol(id) {
-  sessionStorage.setItem('sessionCreds', JSON.stringify({ u, h }));
-  window.open(`/protocol/edit/${id}`, '_blank');
+  window.open(`/protocol/edit/${id}?u=${encodeURIComponent(u)}&h=${encodeURIComponent(h)}`, '_blank');
 }
 
 function printProtocol(id) {
-  sessionStorage.setItem('sessionCreds', JSON.stringify({ u, h }));
-  window.open(`/protocol/print/${id}`, '_blank');
+  window.open(`/protocol/print/${id}?u=${encodeURIComponent(u)}&h=${encodeURIComponent(h)}`, '_blank');
 }
 
 async function deleteProtocol(id) {
