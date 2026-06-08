@@ -275,8 +275,17 @@ async function showSetupScreen() {
 }
 
 function showSetupError(msg) {
-  const el = document.getElementById('setupError');
-  if (el) { el.textContent = msg; el.style.display = 'block'; }
+  let el = document.getElementById('setupError');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'setupError';
+    el.style.cssText = 'background:#f8d7da;border:2px solid #e74c3c;padding:12px;border-radius:6px;color:#721c24;margin:12px 0;font-size:1rem;font-weight:bold;';
+    const btn = document.getElementById('startBtn');
+    if (btn) btn.parentNode.insertBefore(el, btn);
+    else document.body.prepend(el);
+  }
+  el.textContent = '❌ ' + msg;
+  el.style.display = 'block';
 }
 
 async function startProtocol() {
