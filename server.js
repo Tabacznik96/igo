@@ -348,6 +348,69 @@ app.get('/api/print/:sessionId/:category', requireAuth, async (req, res) => {
   } catch(e) { res.status(500).json({ error: 'Błąd serwera' }); }
 });
 
+// --- Protocols ---
+app.get('/api/protocols/session/:sessionId', requireAuth, async (req, res) => {
+  try {
+    const db = await getDb();
+    const protocols = all(db,
+      `SELECT p.*, u.display_name as inspector_name
+       FROM protocols p LEFT JOIN users u ON u.id = p.created_by
+       WHERE p.session_id = ? ORDER BY p.created_at`,
+      [req.params.sessionId]);
+    res.json(protocols);
+  } catch(e) { res.status(500).json({ error: 'Błąd serwera' }); }
+});
+
+app.post('/api/protocols/session/:sessionId', requireAuth, async (req, res) => {
+  try {
+    const { unit, unit_type } = req.body;
+    if (!unit || !unit_type) return res.status(400).json({ error: 'Brak wymaganych danych' });
+    const db = await getDb();
+    run(db,
+      'INSERT INTO protocols (session_id, unit, unit_type, sections_json, created_by) VALUES (?,?,?,?,?)',
+      [req.params.sessionId, unit, unit_type, '{}', req.user.id]);
+    const proto = get(db,
+      'SELECT * FROM protocols WHERE session_id=? AND unit=? AND unit_type=? ORDER BY id DESC LIMIT 1',
+      [req.params.sessionId, unit, unit_type]);
+    res.json({ ok: true, id: proto.id });
+  } catch(e) { console.error(e); res.status(500).json({ error: 'Błąd serwera' }); }
+});
+
+app.get('/api/protocols/:id', requireAuth, async (req, res) => {
+  try {
+    const db = await getDb();
+    const proto = get(db,
+      `SELECT p.*, u.display_name as inspector_name, s.name as session_name
+       FROM protocols p
+       LEFT JOIN users u ON u.id = p.created_by
+       LEFT JOIN sessions s ON s.id = p.session_id
+       WHERE p.id = ?`, [req.params.id]);
+    if (!proto) return res.status(404).json({ error: 'Protokół nie istnieje' });
+    res.json({ ...proto, sections_json: JSON.parse(proto.sections_json || '{}') });
+  } catch(e) { res.status(500).json({ error: 'Błąd serwera' }); }
+});
+
+app.put('/api/protocols/:id', requireAuth, async (req, res) => {
+  try {
+    const { sections_json, total_points, max_points, grade, notes } = req.body;
+    const db = await getDb();
+    run(db,
+      `UPDATE protocols SET sections_json=?, total_points=?, max_points=?, grade=?, notes=?,
+       updated_at=datetime('now') WHERE id=?`,
+      [JSON.stringify(sections_json || {}), total_points || 0, max_points || 100,
+       grade || 0, notes || '', req.params.id]);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'Błąd serwera' }); }
+});
+
+app.delete('/api/protocols/:id', requireAuth, async (req, res) => {
+  try {
+    const db = await getDb();
+    run(db, 'DELETE FROM protocols WHERE id = ?', [req.params.id]);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'Błąd serwera' }); }
+});
+
 // --- SPA routes ---
 app.get('/test/:sessionId/:category', (req, res) =>
   res.sendFile(path.join(__dirname, 'public', 'test.html')));
@@ -357,5 +420,11 @@ app.get('/session/:sessionId', (req, res) =>
   res.sendFile(path.join(__dirname, 'public', 'session.html')));
 app.get('/print/:sessionId/:category', (req, res) =>
   res.sendFile(path.join(__dirname, 'public', 'print.html')));
+app.get('/protocol/new/:sessionId', (req, res) =>
+  res.sendFile(path.join(__dirname, 'public', 'protocol.html')));
+app.get('/protocol/edit/:id', (req, res) =>
+  res.sendFile(path.join(__dirname, 'public', 'protocol.html')));
+app.get('/protocol/print/:id', (req, res) =>
+  res.sendFile(path.join(__dirname, 'public', 'protocol-print.html')));
 
 app.listen(PORT, () => console.log(`PSP Inspekcja uruchomiona na porcie ${PORT}`));

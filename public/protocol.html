@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Protokół IGO – PSP</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    /* ── layout ── */
+    body { background: var(--light-gray); }
+    #mainScreen { display:none; }
+    #setupScreen { display:none; }
+
+    .proto-header {
+      background: var(--navy); color:#fff; padding:12px 16px;
+      display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+      position:sticky; top:0; z-index:100;
+    }
+    .proto-header h1 { font-size:1rem; margin:0; flex:1; }
+    .proto-header p  { font-size:0.78rem; opacity:.7; margin:0; }
+    #saveStatus { font-size:0.78rem; opacity:.8; }
+
+    .proto-layout { display:flex; min-height:calc(100vh - 52px); }
+
+    /* ── section nav ── */
+    .sec-nav {
+      width:220px; min-width:180px; background:#fff; border-right:1px solid var(--mid-gray);
+      padding:12px 8px; display:flex; flex-direction:column; gap:4px;
+      position:sticky; top:52px; max-height:calc(100vh - 52px); overflow-y:auto;
+    }
+    .sec-nav-btn {
+      display:flex; justify-content:space-between; align-items:center;
+      padding:8px 10px; border:none; background:transparent; text-align:left;
+      font-size:0.82rem; cursor:pointer; border-radius:6px; gap:6px;
+      color: var(--dark-gray);
+    }
+    .sec-nav-btn:hover { background:var(--light-gray); }
+    .sec-nav-btn.active { background:var(--navy); color:#fff; }
+    .sec-nav-btn.done { border-left:3px solid var(--green); }
+    .sec-nav-btn.active.done { border-left:3px solid rgba(255,255,255,.6); }
+    .sec-pts { font-size:0.75rem; opacity:.75; white-space:nowrap; }
+
+    /* ── score bar ── */
+    .score-footer {
+      position:sticky; bottom:0; background:#fff; border-top:2px solid var(--mid-gray);
+      padding:10px 16px; display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+      z-index:90;
+    }
+    .score-footer .total-label { font-size:1.1rem; font-weight:700; color:var(--navy); }
+    #gradeDisplay { font-weight:700; font-size:1rem; }
+    .score-bar-wrap { flex:1; min-width:120px; background:#eee; border-radius:4px; height:8px; }
+    #scoreBar { height:8px; border-radius:4px; transition:width .4s, background .4s; width:0%; }
+
+    /* ── section content ── */
+    .sec-content-wrap { flex:1; padding:16px; max-width:720px; }
+    .sec-header { margin-bottom:16px; }
+    .sec-header h2 { color:var(--navy); font-size:1.1rem; margin:0 0 4px; }
+    .sec-maxpts { font-size:0.82rem; color:var(--dark-gray); }
+    .sec-pts-box {
+      margin-top:16px; padding:10px 14px; background:#f8f9fa; border-radius:6px;
+      font-size:0.9rem; border-left:4px solid var(--navy);
+    }
+    .sec-pts-box strong { font-size:1.2rem; color:var(--navy); }
+
+    /* ── alarm ── */
+    .alarm-wrap { }
+    .stopwatch-display {
+      font-size:3rem; font-weight:700; text-align:center; color:var(--navy);
+      font-variant-numeric:tabular-nums; margin:8px 0;
+    }
+    .stopwatch-btns { display:flex; gap:8px; justify-content:center; margin-bottom:16px; }
+    .alarm-table { width:100%; border-collapse:collapse; margin-top:12px; font-size:0.85rem; }
+    .alarm-table th, .alarm-table td { padding:6px 10px; border:1px solid var(--mid-gray); }
+    .alarm-table th { background:var(--navy); color:#fff; }
+    .alarm-table tr.alarm-active { background:#d4edda; font-weight:700; }
+    .alarm-result { text-align:center; margin-top:12px; }
+    .points-big { font-size:2rem; font-weight:700; color:var(--green); }
+
+    /* ── firefighters ── */
+    .ff-row {
+      background:#fff; border:1px solid var(--mid-gray); border-radius:8px;
+      padding:12px; margin-bottom:10px;
+    }
+    .ff-row-header { display:flex; gap:8px; margin-bottom:8px; }
+    .ff-name { flex:1; }
+    .ff-checks { display:flex; flex-direction:column; gap:4px; }
+    .ff-check {
+      display:flex; align-items:center; gap:8px; font-size:0.83rem;
+      padding:4px 6px; border-radius:4px; cursor:pointer;
+    }
+    .ff-check.err { background:#f8d7da; }
+    .ff-summary { margin-top:10px; font-weight:700; color:var(--navy); }
+
+    /* ── checklist ── */
+    .chk-row {
+      background:#fff; border:1px solid var(--mid-gray); border-radius:8px;
+      padding:12px; margin-bottom:8px;
+    }
+    .chk-name { font-size:0.9rem; font-weight:600; color:var(--navy); margin-bottom:8px; }
+    .chk-controls { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+    .chk-pts-label { font-size:0.8rem; color:var(--dark-gray); min-width:40px; }
+    .radio-opt {
+      display:flex; align-items:center; gap:4px; padding:5px 10px;
+      border:1px solid var(--mid-gray); border-radius:20px; cursor:pointer;
+      font-size:0.82rem; transition:all .15s;
+    }
+    .radio-opt input { display:none; }
+    .radio-opt.sel-ok      { background:#d4edda; border-color:var(--green); }
+    .radio-opt.sel-partial { background:#fff3cd; border-color:#f0ad4e; }
+    .radio-opt.sel-no      { background:#f8d7da; border-color:var(--red); }
+
+    /* ── test link ── */
+    .test-link-wrap { }
+
+    /* ── exercise ── */
+    .ex-row {
+      display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;
+      padding:10px 12px; border:1px solid var(--mid-gray); border-radius:6px;
+      margin-bottom:6px; background:#fff; gap:8px;
+    }
+    .ex-row.ex-checked { background:#f8d7da; border-color:#e74c3c; }
+    .ex-label { display:flex; align-items:center; gap:8px; font-size:0.85rem; flex:1; cursor:pointer; }
+    .ex-penalty { display:flex; align-items:center; gap:6px; }
+    .ex-count { width:50px; padding:3px 6px; border:1px solid #ccc; border-radius:4px; text-align:center; }
+    .ex-result { text-align:center; margin-top:16px; padding:12px; background:#f8f9fa; border-radius:8px; }
+    .ex-extra-name { width:100%; margin-bottom:6px; }
+
+    /* ── setup screen ── */
+    .setup-wrap {
+      max-width:480px; margin:60px auto; padding:24px;
+      background:#fff; border-radius:12px; box-shadow:0 2px 16px rgba(0,0,0,.1);
+    }
+    .setup-wrap h2 { color:var(--navy); margin-bottom:4px; }
+    .setup-session { font-size:0.85rem; color:var(--dark-gray); margin-bottom:20px; }
+
+    /* ── mobile ── */
+    @media (max-width:600px) {
+      .sec-nav { display:none; }
+      .sec-nav.open { display:flex; position:fixed; top:0; left:0; right:0; bottom:0; z-index:200; padding:60px 16px 16px; }
+      .sec-toggle { display:flex !important; }
+    }
+    .sec-toggle { display:none; }
+
+    @media print { .proto-header,.score-footer,.sec-nav,.sec-toggle { display:none !important; } }
+  </style>
+</head>
+<body>
+
+<!-- ── SETUP SCREEN ── -->
+<div id="setupScreen">
+  <div class="app-header no-print">
+    <div class="logo">🔥</div>
+    <div class="title-block"><h1>Nowy protokół IGO</h1><p>Państwowa Straż Pożarna</p></div>
+    <a href="/" class="btn btn-outline btn-sm" style="margin-left:auto;border-color:rgba(255,255,255,.5);color:#fff;">← Wróć</a>
+  </div>
+  <div class="container">
+    <div class="setup-wrap">
+      <h2>Nowy protokół inspekcji</h2>
+      <p class="setup-session">Sesja: <strong id="setupSessionName">—</strong></p>
+      <div class="form-group">
+        <label>Nazwa / nr jednostki</label>
+        <input type="text" id="unitNameInput" class="form-control" placeholder="np. JRG-1 Kartuzy">
+      </div>
+      <div class="form-group">
+        <label>Typ jednostki</label>
+        <select id="unitTypeSelect" class="form-control">
+          <option value="jrg">JRG – Jednostka Ratowniczo-Gaśnicza</option>
+          <option value="osp">OSP – Ochotnicza Straż Pożarna</option>
+          <option value="sk">SK – Stanowisko Kierowania</option>
+        </select>
+      </div>
+      <button class="btn btn-danger btn-block" onclick="startProtocol()">▶ Rozpocznij protokół</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MAIN SCREEN ── -->
+<div id="mainScreen">
+
+  <div class="proto-header">
+    <button class="btn btn-outline btn-sm sec-toggle" style="border-color:rgba(255,255,255,.4);color:#fff;" onclick="toggleSecNav()">☰</button>
+    <div style="flex:1">
+      <h1 id="mainTitle">Protokół IGO</h1>
+      <p id="mainSubtitle"></p>
+    </div>
+    <span id="saveStatus"></span>
+    <button class="btn btn-gold btn-sm" onclick="saveProtocol()">💾 Zapisz</button>
+    <button class="btn btn-outline btn-sm" style="border-color:rgba(255,255,255,.4);color:#fff;" onclick="openPrint()">🖨️ Drukuj</button>
+    <button class="btn btn-outline btn-sm" style="border-color:rgba(255,255,255,.4);color:#fff;" onclick="goBack()">← Wróć</button>
+  </div>
+
+  <div class="proto-layout">
+    <nav class="sec-nav" id="sectionNav"></nav>
+
+    <div style="flex:1;display:flex;flex-direction:column;">
+      <div class="sec-content-wrap">
+        <div id="sectionContent"></div>
+      </div>
+
+      <div class="score-footer">
+        <div>
+          <div class="total-label"><span id="totalPts">0</span> / <span id="maxPts">100</span> pkt</div>
+          <div id="gradeDisplay">—</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex:1;">
+          <div class="score-bar-wrap"><div id="scoreBar"></div></div>
+          <span id="totalPct" style="font-weight:700;color:var(--navy);">0%</span>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-danger" onclick="saveProtocol()">💾 Zapisz protokół</button>
+          <button class="btn btn-primary" onclick="openPrint()">🖨️ Generuj protokół</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="protocol.js"></script>
+<script>
+function toggleSecNav() {
+  document.getElementById('sectionNav').classList.toggle('open');
+}
+</script>
+</body>
+</html>

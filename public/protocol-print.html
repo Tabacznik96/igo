@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Protokół IGO</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    body { background:#fff; font-family:Arial, sans-serif; font-size:11pt; color:#000; }
+    .no-print { }
+    @media print {
+      .no-print { display:none !important; }
+      body { margin:0; }
+      .page-break { page-break-before: always; }
+    }
+
+    .proto-doc { max-width:800px; margin:0 auto; padding:20px; }
+
+    /* ── header ── */
+    .doc-header { border:2px solid #000; padding:12px; margin-bottom:16px; }
+    .doc-header-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; }
+    .doc-logo { font-size:2rem; }
+    .doc-title { text-align:center; flex:1; }
+    .doc-title h1 { font-size:14pt; text-transform:uppercase; margin:0 0 4px; }
+    .doc-title h2 { font-size:12pt; margin:0; }
+    .doc-annex { font-size:9pt; color:#555; text-align:right; }
+    .doc-meta { display:grid; grid-template-columns:1fr 1fr; gap:6px; border-top:1px solid #ccc; padding-top:8px; font-size:10pt; }
+    .doc-meta-row { display:flex; gap:4px; }
+    .doc-meta-row label { font-weight:bold; white-space:nowrap; }
+
+    /* ── sections ── */
+    .proto-section { margin-bottom:14px; }
+    .proto-section-title {
+      background:#1a2a4a; color:#fff; padding:6px 10px;
+      font-size:11pt; font-weight:bold; display:flex; justify-content:space-between;
+    }
+    .proto-section-title .max-pts { font-size:9pt; opacity:.8; }
+
+    table.proto-table { width:100%; border-collapse:collapse; font-size:10pt; }
+    table.proto-table th, table.proto-table td {
+      border:1px solid #999; padding:5px 8px; vertical-align:top;
+    }
+    table.proto-table th { background:#f0f0f0; font-weight:bold; }
+    table.proto-table .pts-col { text-align:center; width:70px; }
+    table.proto-table .pts-earned { text-align:center; font-weight:bold; }
+    .row-ok   { background:#d4edda; }
+    .row-partial { background:#fff3cd; }
+    .row-no   { background:#f8d7da; }
+    .row-error { background:#f8d7da; }
+
+    /* ── alarm ── */
+    .alarm-result-row { font-weight:bold; background:#d4edda; }
+
+    /* ── firefighters ── */
+    .ff-table-row-person { background:#e8f4fd; font-weight:bold; }
+
+    /* ── exercise ── */
+    .ex-start-row { background:#d4edda; font-weight:bold; }
+    .ex-error-row { background:#f8d7da; }
+
+    /* ── summary ── */
+    .summary-table { width:100%; border-collapse:collapse; margin-top:12px; font-size:11pt; }
+    .summary-table th, .summary-table td { border:2px solid #000; padding:7px 10px; }
+    .summary-table th { background:#1a2a4a; color:#fff; }
+    .summary-total { font-weight:bold; font-size:13pt; }
+    .grade-box {
+      border:3px solid #000; padding:16px; text-align:center; margin:16px 0;
+      display:inline-block; min-width:200px;
+    }
+    .grade-number { font-size:48pt; font-weight:bold; line-height:1; }
+    .grade-label  { font-size:14pt; }
+
+    /* ── signatures ── */
+    .signatures { display:flex; gap:40px; margin-top:30px; }
+    .sig-block { flex:1; border-top:1px solid #000; padding-top:6px; font-size:10pt; text-align:center; }
+
+    /* ── notes ── */
+    .notes-box { border:1px solid #999; min-height:60px; padding:8px; margin-top:6px; font-size:10pt; }
+
+    /* loading */
+    #loadingMsg { text-align:center; padding:60px; font-size:1.2rem; }
+  </style>
+</head>
+<body>
+
+<div class="no-print" style="background:var(--navy,#1a2a4a);padding:12px 20px;display:flex;gap:12px;align-items:center;">
+  <span style="color:#fff;font-weight:bold;font-size:1rem;">Podgląd protokołu IGO</span>
+  <button onclick="window.print()" style="margin-left:auto;" class="btn btn-gold btn-sm">🖨️ Drukuj</button>
+  <button onclick="history.back()" class="btn btn-outline btn-sm" style="border-color:rgba(255,255,255,.4);color:#fff;">← Wróć</button>
+</div>
+
+<div id="loadingMsg">⏳ Ładowanie protokołu…</div>
+<div id="protocolDoc" class="proto-doc" style="display:none;"></div>
+
+<script src="protocol.js"></script>
+<script>
+// ── PRINT RENDER ─────────────────────────────────────────────────────────
+(async function() {
+  let authU = '', authH = '';
+  try {
+    const c = JSON.parse(sessionStorage.getItem('sessionCreds') || '{}');
+    authU = c.u || ''; authH = c.h || '';
+  } catch(e) {}
+
+  const protocolId = location.pathname.split('/')[3];
+
+  function hdr() { return { 'x-username': authU, 'x-password-hash': authH }; }
+
+  let proto;
+  try {
+    const r = await fetch(`/api/protocols/${protocolId}`, { headers: hdr() });
+    proto = await r.json();
+    if (proto.error) throw new Error(proto.error);
+    if (typeof proto.sections_json === 'string') proto.sections_json = JSON.parse(proto.sections_json);
+  } catch(e) {
+    document.getElementById('loadingMsg').textContent = 'Błąd: ' + e.message;
+    return;
+  }
+
+  const cfg  = PROTOCOL_CONFIG[proto.unit_type];
+  const sd   = proto.sections_json || {};
+  const date = new Date(proto.created_at).toLocaleDateString('pl-PL');
+  const pct  = Math.round(proto.total_points / proto.max_points * 100);
+  const grade = calcGrade(pct);
+
+  let html = `
+  <div class="doc-header">
+    <div class="doc-header-top">
+      <div class="doc-logo">🔥</div>
+      <div class="doc-title">
+        <h1>Protokół inspekcji gotowości operacyjnej</h1>
+        <h2>Państwowa Straż Pożarna</h2>
+      </div>
+      <div class="doc-annex">${cfg.annex}</div>
+    </div>
+    <div class="doc-meta">
+      <div class="doc-meta-row"><label>Jednostka:</label> <span>${esc(proto.unit)}</span></div>
+      <div class="doc-meta-row"><label>Typ:</label> <span>${cfg.fullName}</span></div>
+      <div class="doc-meta-row"><label>Sesja:</label> <span>${esc(proto.session_name||proto.session_id)}</span></div>
+      <div class="doc-meta-row"><label>Data:</label> <span>${date}</span></div>
+      <div class="doc-meta-row"><label>Inspektor:</label> <span>${esc(proto.inspector_name||'—')}</span></div>
+      <div class="doc-meta-row"><label>Nr protokołu:</label> <span>IGO/${new Date(proto.created_at).getFullYear()}/${proto.id}</span></div>
+    </div>
+  </div>`;
+
+  for (const sec of cfg.sections) {
+    const secSd = sd[sec.id] || {};
+    html += renderPrintSection(sec, secSd, cfg);
+  }
+
+  // Summary table
+  html += `<div class="proto-section"><div class="proto-section-title">PODSUMOWANIE WYNIKÓW</div>`;
+  html += `<table class="summary-table"><thead><tr><th>Lp.</th><th>Element oceny</th><th>Pkt uzyskane</th><th>Pkt max</th><th>%</th></tr></thead><tbody>`;
+  let totalEarned = 0;
+  cfg.sections.forEach((sec, i) => {
+    const secSd = sd[sec.id] || {};
+    const pts = getPoints(sec, secSd);
+    const earned = pts !== null ? pts : 0;
+    totalEarned += earned;
+    const secPct = Math.round(earned / sec.maxPoints * 100);
+    html += `<tr><td>${i+1}</td><td>${sec.name}</td>
+      <td class="pts-earned">${earned}</td>
+      <td class="pts-col">${sec.maxPoints}</td>
+      <td class="pts-col">${secPct}%</td></tr>`;
+  });
+  html += `<tr style="background:#1a2a4a;color:#fff;font-weight:bold;">
+    <td colspan="2" style="text-align:right;padding:8px;">ŁĄCZNIE:</td>
+    <td class="pts-earned" style="color:#fff;">${totalEarned}</td>
+    <td class="pts-col">${cfg.maxPoints}</td>
+    <td class="pts-col">${pct}%</td>
+  </tr></tbody></table>`;
+
+  html += `<div style="text-align:center;margin:20px 0;">
+    <div class="grade-box">
+      <div class="grade-number" style="color:${grade?grade.color:'#000'}">${grade?grade.grade:'—'}</div>
+      <div class="grade-label">${grade?grade.label:'—'}</div>
+    </div>
+    <div style="margin-top:8px;font-size:10pt;color:#555;">
+      Skala ocen: 1 (≤50%) | 2 (51–60%) | 3 (61–70%) | 4 (71–80%) | 5 (81–90%) | 6 (≥91%)
+    </div>
+  </div>`;
+
+  if (proto.notes) {
+    html += `<div class="proto-section"><div class="proto-section-title">UWAGI OGÓLNE</div>
+      <div class="notes-box">${esc(proto.notes)}</div></div>`;
+  }
+
+  html += `<div class="signatures">
+    <div class="sig-block">Inspektor przeprowadzający IGO<br><br><br>(podpis i pieczęć)</div>
+    <div class="sig-block">Dowódca / Kierownik jednostki<br><br><br>(podpis i pieczęć)</div>
+    <div class="sig-block">Data i miejsce:<br><br>${date}</div>
+  </div>`;
+  html += `</div>`; // close summary section
+
+  document.getElementById('loadingMsg').style.display = 'none';
+  document.getElementById('protocolDoc').innerHTML = html;
+  document.getElementById('protocolDoc').style.display = 'block';
+  document.title = `Protokół IGO – ${proto.unit} – ${proto.session_name || proto.session_id}`;
+})();
+
+function renderPrintSection(sec, secSd, cfg) {
+  let html = `<div class="proto-section">
+    <div class="proto-section-title"><span>${sec.name}</span><span class="max-pts">max ${sec.maxPoints} pkt</span></div>`;
+
+  if (sec.type === 'alarm') {
+    const isMin = sec.alarmType === 'minutes';
+    const t = secSd.timeSeconds;
+    const pts = t !== null && t !== undefined ? timeToPoints(sec.table, t) : '—';
+    html += `<table class="proto-table"><thead><tr>
+      <th>Czas wyjazdu</th><th class="pts-col">Punkty (skala)</th><th class="pts-col">Pkt uzyskane</th></tr></thead><tbody>`;
+    sec.table.forEach((row, i) => {
+      const active = t !== null && t !== undefined && timeToPoints(sec.table, t) === row.points && (i === 0 || t > sec.table[i-1].maxSec);
+      html += `<tr class="${active ? 'alarm-result-row' : ''}">
+        <td>${row.label}${active && t !== null ? ` <em>(zmierzono: ${formatTime(t, isMin)})</em>` : ''}</td>
+        <td class="pts-col">${row.points}</td>
+        <td class="pts-col">${active ? '<strong>'+pts+'</strong>' : ''}</td></tr>`;
+    });
+    html += `</tbody></table>`;
+
+  } else if (sec.type === 'firefighters') {
+    html += `<table class="proto-table"><thead><tr>
+      <th>Lp.</th><th>Ratownik</th><th>Element sprawdzenia</th><th class="pts-col">Wynik</th><th class="pts-col">Kara</th></tr></thead><tbody>`;
+    let totalPenalty = 0;
+    (secSd.people || []).forEach((p, pi) => {
+      const deficiencies = sec.checks.filter(ch => p.checks && p.checks[ch.id] === false);
+      html += `<tr class="ff-table-row-person"><td>${pi+1}</td><td colspan="3">${esc(p.name || 'Ratownik '+(pi+1))}</td>
+        <td class="pts-col">—</td></tr>`;
+      sec.checks.forEach(ch => {
+        const ok = !p.checks || p.checks[ch.id] !== false;
+        if (!ok) totalPenalty += ch.penalty;
+        html += `<tr class="${ok?'row-ok':'row-no'}">
+          <td></td><td></td>
+          <td>${ch.name}</td>
+          <td class="pts-col">${ok ? '✅ TAK' : '❌ NIE'}</td>
+          <td class="pts-col">${ok ? '0' : '–'+ch.penalty}</td></tr>`;
+      });
+    });
+    const ptsEarned = Math.max(0, sec.maxPoints - totalPenalty);
+    html += `<tr style="font-weight:bold;background:#f0f0f0;">
+      <td colspan="4" style="text-align:right;">Łącznie:</td>
+      <td class="pts-col">${ptsEarned} / ${sec.maxPoints}</td></tr>`;
+    html += `</tbody></table>`;
+
+  } else if (sec.type === 'checklist_points') {
+    html += `<table class="proto-table"><thead><tr>
+      <th>Lp.</th><th>Element oceny</th><th class="pts-col">Pkt max</th>
+      <th class="pts-col">Wynik</th><th class="pts-col">Pkt uzysk.</th></tr></thead><tbody>`;
+    let total = 0;
+    sec.items.forEach((it, i) => {
+      const v = secSd.items ? (secSd.items[it.id] || 'ok') : 'ok';
+      let earned = v === 'ok' ? it.points : v === 'partial' ? it.points * 0.5 : 0;
+      total += earned;
+      const cls = v === 'ok' ? 'row-ok' : v === 'partial' ? 'row-partial' : 'row-no';
+      const lbl = v === 'ok' ? '✅ TAK' : v === 'partial' ? '⚠️ Częściowo' : '❌ NIE';
+      html += `<tr class="${cls}"><td>${i+1}</td><td>${it.name}</td>
+        <td class="pts-col">${it.points}</td>
+        <td class="pts-col">${lbl}</td>
+        <td class="pts-col">${earned}</td></tr>`;
+    });
+    html += `<tr style="font-weight:bold;background:#f0f0f0;">
+      <td colspan="4" style="text-align:right;">Łącznie:</td>
+      <td class="pts-col">${Math.round(total*2)/2} / ${sec.maxPoints}</td></tr>`;
+    html += `</tbody></table>`;
+
+  } else if (sec.type === 'test_link') {
+    const pts = secSd.points !== null && secSd.points !== undefined ? secSd.points : '—';
+    const score = secSd.score !== null && secSd.score !== undefined ? secSd.score : '—';
+    const total = secSd.total || sec.maxPoints;
+    html += `<table class="proto-table"><thead><tr>
+      <th>Forma oceny</th><th>Wynik testu</th><th class="pts-col">Pkt max</th><th class="pts-col">Pkt uzysk.</th></tr></thead>
+      <tbody><tr class="${pts!=='—' && pts>=sec.maxPoints*0.6?'row-ok':'row-no'}">
+        <td>Test pisemny (jednokrotnego wyboru)</td>
+        <td>${score} / ${total} poprawnych odpowiedzi</td>
+        <td class="pts-col">${sec.maxPoints}</td>
+        <td class="pts-col"><strong>${pts}</strong></td></tr>
+      </tbody></table>`;
+
+  } else if (sec.type === 'exercise') {
+    html += `<table class="proto-table"><thead><tr>
+      <th>Lp.</th><th>Stwierdzone uchybienie</th><th class="pts-col">Kara (pkt)</th>
+      <th class="pts-col">Ilość</th><th class="pts-col">Razem</th></tr></thead><tbody>`;
+    html += `<tr class="ex-start-row"><td colspan="4" style="text-align:right;">Punkty wyjściowe:</td>
+      <td class="pts-col">${sec.maxPoints}</td></tr>`;
+    let penalty = 0;
+    let lp = 1;
+    sec.errors.forEach(e => {
+      const state = secSd.errors && secSd.errors[e.id];
+      if (state && state.checked) {
+        const cnt = state.count || 1;
+        const total = e.penalty * cnt;
+        penalty += total;
+        html += `<tr class="ex-error-row"><td>${lp++}</td><td>${e.name}</td>
+          <td class="pts-col">–${e.penalty}</td>
+          <td class="pts-col">${cnt}</td>
+          <td class="pts-col">–${total}</td></tr>`;
+      }
+    });
+    (secSd.extraErrors || []).forEach(e => {
+      if (e.name || e.penalty > 0) {
+        penalty += parseFloat(e.penalty) || 0;
+        html += `<tr class="ex-error-row"><td>${lp++}</td><td>${esc(e.name||'Inne uchybienie')}</td>
+          <td class="pts-col" colspan="2">—</td>
+          <td class="pts-col">–${e.penalty}</td></tr>`;
+      }
+    });
+    if (lp === 1) {
+      html += `<tr><td colspan="5" style="text-align:center;color:#555;">Brak stwierdzonych uchybień</td></tr>`;
+    }
+    const earned = Math.max(0, sec.maxPoints - penalty);
+    html += `<tr style="font-weight:bold;background:#f0f0f0;">
+      <td colspan="4" style="text-align:right;">Łącznie punkty ćwiczenia:</td>
+      <td class="pts-col">${earned} / ${sec.maxPoints}</td></tr>`;
+    html += `</tbody></table>`;
+    if (secSd.notes) {
+      html += `<div style="margin-top:6px;padding:6px 8px;background:#f9f9f9;border:1px solid #ccc;font-size:10pt;">
+        <strong>Uwagi:</strong> ${esc(secSd.notes)}</div>`;
+    }
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+</script>
+</body>
+</html>

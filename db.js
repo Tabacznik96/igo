@@ -55,6 +55,22 @@ async function getDb() {
       completed_at DATETIME DEFAULT (datetime('now')),
       FOREIGN KEY (session_id) REFERENCES sessions(id)
     );
+
+    CREATE TABLE IF NOT EXISTS protocols (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id TEXT NOT NULL,
+      unit TEXT NOT NULL,
+      unit_type TEXT NOT NULL,
+      sections_json TEXT DEFAULT '{}',
+      total_points REAL DEFAULT 0,
+      max_points INTEGER DEFAULT 100,
+      grade INTEGER DEFAULT 0,
+      notes TEXT DEFAULT '',
+      created_by INTEGER,
+      created_at DATETIME DEFAULT (datetime('now')),
+      updated_at DATETIME DEFAULT (datetime('now')),
+      FOREIGN KEY (session_id) REFERENCES sessions(id)
+    );
   `);
 
   // Migrations

@@ -63,6 +63,15 @@
       </div>
     </div>
 
+    <!-- Protocols -->
+    <div class="card no-print">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <span>📋 Protokoły IGO</span>
+        <button class="btn btn-danger btn-sm" onclick="openNewProtocol()">➕ Nowy protokół</button>
+      </div>
+      <div id="protocolsList"><div class="empty-state"><div class="icon">📄</div><div>Brak protokołów</div></div></div>
+    </div>
+
     <!-- Per-result detail cards (visible in print) -->
     <div id="detailCards"></div>
 
@@ -82,6 +91,72 @@ const CAT = { kierowcy:'Kierowcy', dowodcy:'Dowódcy', stanowiska_kierowania:'St
 
 function authH() { return { 'x-username': u, 'x-password-hash': h }; }
 
+const UNIT_TYPE_LABELS = { jrg: 'JRG', osp: 'OSP', sk: 'SK' };
+const GRADE_COLORS = { 6:'#27ae60', 5:'#2ecc71', 4:'#3498db', 3:'#f39c12', 2:'#e67e22', 1:'#e74c3c' };
+
+function openNewProtocol() {
+  sessionStorage.setItem('sessionCreds', JSON.stringify({ u, h }));
+  window.open(`/protocol/new/${sessionId}`, '_blank');
+}
+
+function openProtocol(id) {
+  sessionStorage.setItem('sessionCreds', JSON.stringify({ u, h }));
+  window.open(`/protocol/edit/${id}`, '_blank');
+}
+
+function printProtocol(id) {
+  sessionStorage.setItem('sessionCreds', JSON.stringify({ u, h }));
+  window.open(`/protocol/print/${id}`, '_blank');
+}
+
+async function deleteProtocol(id) {
+  if (!confirm('Usunąć protokół?')) return;
+  await fetch(`/api/protocols/${id}`, { method:'DELETE', headers: authH() });
+  loadProtocols();
+}
+
+async function loadProtocols() {
+  try {
+    const r = await fetch(`/api/protocols/session/${sessionId}`, { headers: authH() });
+    const protocols = await r.json();
+    renderProtocols(protocols);
+  } catch(e) {}
+}
+
+function renderProtocols(protocols) {
+  const el = document.getElementById('protocolsList');
+  if (!protocols.length) {
+    el.innerHTML = '<div class="empty-state"><div class="icon">📄</div><div>Brak protokołów. Kliknij „Nowy protokół" aby rozpocząć.</div></div>';
+    return;
+  }
+  const gradeScale = [{minPct:91,grade:6,label:'celujący'},{minPct:81,grade:5,label:'b.dobry'},{minPct:71,grade:4,label:'dobry'},{minPct:61,grade:3,label:'dostat.'},{minPct:51,grade:2,label:'dopusz.'},{minPct:0,grade:1,label:'niedost.'}];
+  function calcGrade(pct) { for (const g of gradeScale) if (pct >= g.minPct) return g; return gradeScale[gradeScale.length-1]; }
+
+  let html = '<div class="table-wrap"><table><thead><tr><th>Jednostka</th><th>Typ</th><th>Inspektor</th><th>Wynik</th><th>Ocena</th><th>Data</th><th>Akcje</th></tr></thead><tbody>';
+  for (const p of protocols) {
+    const pct  = Math.round(p.total_points / p.max_points * 100);
+    const grade = calcGrade(pct);
+    const date  = new Date(p.created_at).toLocaleDateString('pl-PL');
+    const color = GRADE_COLORS[grade.grade] || '#666';
+    html += `<tr>
+      <td><a href="#" onclick="openProtocol(${p.id});return false;" style="color:var(--navy);font-weight:700;">${esc(p.unit)}</a></td>
+      <td><span class="badge badge-info">${UNIT_TYPE_LABELS[p.unit_type]||p.unit_type}</span></td>
+      <td style="font-size:0.85rem;">${esc(p.inspector_name||'—')}</td>
+      <td><strong>${p.total_points}</strong>/${p.max_points} pkt (${pct}%)</td>
+      <td><span style="font-weight:800;color:${color};font-size:1.1rem;">${grade.grade}</span> <span style="font-size:0.8rem;color:#666;">${grade.label}</span></td>
+      <td style="font-size:0.85rem;">${date}</td>
+      <td style="white-space:nowrap;">
+        <button class="btn btn-outline btn-sm" onclick="openProtocol(${p.id})">✏️ Edytuj</button>
+        <button class="btn btn-primary btn-sm" onclick="printProtocol(${p.id})">🖨️ Protokół</button>
+        <button class="btn btn-outline btn-sm" onclick="deleteProtocol(${p.id})">🗑️</button>
+      </td>
+    </tr>`;
+  }
+  html += '</tbody></table></div>';
+  el.innerHTML = html;
+}
+
+
 async function load() {
   try {
     const [sessRes, resRes] = await Promise.all([
@@ -92,6 +167,7 @@ async function load() {
     const session = await sessRes.json();
     const results = await resRes.json();
     render(session, results);
+    loadProtocols();
   } catch(e) {
     document.getElementById('loadingView').innerHTML = '<div class="alert alert-danger">Błąd ładowania danych</div>';
   }
