@@ -220,9 +220,8 @@ function submitNewSession() {
       closeNewSessionModal();
       loadAll();
       // Otwórz stronę sesji
-      sessionStorage.setItem('currentUser', JSON.stringify({ ...currentUser, password: currentUser.password }));
       sessionStorage.setItem('sessionCreds', JSON.stringify({ u: currentUser.username, h: currentUser.passwordHash }));
-      window.open(`/session/${data.id}`, '_blank');
+      window.open(`/session/${data.id}?u=${encodeURIComponent(currentUser.username)}&h=${encodeURIComponent(currentUser.passwordHash)}`, '_blank');
     })
     .catch(e => {
       const el = document.getElementById('newSessionError');
@@ -279,7 +278,7 @@ function closeModal() {
 
 function openSession(id) {
   sessionStorage.setItem('sessionCreds', JSON.stringify({ u: currentUser.username, h: currentUser.passwordHash }));
-  window.open(`/session/${id}`, '_blank');
+  window.open(`/session/${id}?u=${encodeURIComponent(currentUser.username)}&h=${encodeURIComponent(currentUser.passwordHash)}`, '_blank');
 }
 
 function closeSession(id) {
