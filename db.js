@@ -22,6 +22,8 @@ async function getDb() {
   _db.run(`
     CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY,
+      name TEXT,
+      specializations TEXT DEFAULT '[]',
       created_at DATETIME DEFAULT (datetime('now')),
       active INTEGER DEFAULT 1
     );
@@ -40,6 +42,10 @@ async function getDb() {
       FOREIGN KEY (session_id) REFERENCES sessions(id)
     );
   `);
+
+  // Migrate: add columns if they don't exist
+  try { _db.run("ALTER TABLE sessions ADD COLUMN name TEXT"); } catch(e) {}
+  try { _db.run("ALTER TABLE sessions ADD COLUMN specializations TEXT DEFAULT '[]'"); } catch(e) {}
 
   save();
   return _db;
