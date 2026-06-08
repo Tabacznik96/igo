@@ -49,11 +49,7 @@ const PROTOCOL_CONFIG = {
         ]
       },
       {
-        id: 'test', name: '5. Test wiedzy', maxPoints: 15, type: 'test_link',
-        category: 'kierowcy'
-      },
-      {
-        id: 'exercise', name: '6. Ćwiczenie', maxPoints: 50, type: 'exercise',
+        id: 'exercise', name: '5. Ćwiczenie', maxPoints: 50, type: 'exercise',
         errors: [
           { id: 'ex01', name: 'Brak meldunku dowódcy akcji o gotowości sił i środków',    penalty: 2 },
           { id: 'ex02', name: 'Brak lub błędne rozpoznanie miejsca zdarzenia',             penalty: 2 },
@@ -71,6 +67,10 @@ const PROTOCOL_CONFIG = {
           { id: 'ex14', name: 'Brak lub nieprawidłowy meldunek końcowy akcji',             penalty: 1 },
           { id: 'ex15', name: 'Inne stwierdzone uchybienie (za każde)',                    penalty: 1 }
         ]
+      },
+      {
+        id: 'test', name: '6. Test wiedzy', maxPoints: 15, type: 'test_link',
+        category: 'kierowcy'
       }
     ]
   },
@@ -112,11 +112,7 @@ const PROTOCOL_CONFIG = {
         ]
       },
       {
-        id: 'test', name: '4. Test wiedzy', maxPoints: 10, type: 'test_link',
-        category: 'kierowcy'
-      },
-      {
-        id: 'exercise', name: '5. Ćwiczenie', maxPoints: 40, type: 'exercise',
+        id: 'exercise', name: '4. Ćwiczenie', maxPoints: 40, type: 'exercise',
         errors: [
           { id: 'ex01', name: 'Brak meldunku o gotowości sił i środków',         penalty: 2 },
           { id: 'ex02', name: 'Brak rozpoznania miejsca zdarzenia',               penalty: 2 },
@@ -129,6 +125,10 @@ const PROTOCOL_CONFIG = {
           { id: 'ex09', name: 'Brak lub nieprawidłowy meldunek końcowy',         penalty: 1 },
           { id: 'ex10', name: 'Inne stwierdzone uchybienie (za każde)',           penalty: 1 }
         ]
+      },
+      {
+        id: 'test', name: '5. Test wiedzy', maxPoints: 10, type: 'test_link',
+        category: 'kierowcy'
       }
     ]
   },

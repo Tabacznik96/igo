@@ -218,17 +218,20 @@ function submitNewSession() {
     .then(data => {
       if (data.error) throw new Error(data.error);
       closeNewSessionModal();
-      showQrModal(data);
       loadAll();
+      // Otwórz stronę sesji
+      sessionStorage.setItem('currentUser', JSON.stringify({ ...currentUser, password: currentUser.password }));
+      sessionStorage.setItem('sessionCreds', JSON.stringify({ u: currentUser.username, h: currentUser.passwordHash }));
+      window.open(`/session/${data.id}`, '_blank');
     })
     .catch(e => {
       const el = document.getElementById('newSessionError');
-      el.textContent = e.message || 'Błąd podczas generowania sesji';
+      el.textContent = e.message || 'Błąd podczas tworzenia sesji';
       el.style.display = 'block';
     })
     .finally(() => {
       btn.disabled = false;
-      btn.textContent = '✅ Generuj kody QR';
+      btn.textContent = '✅ Utwórz IGO';
     });
 }
 

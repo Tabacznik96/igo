@@ -41,10 +41,25 @@
 
   <div id="content" style="display:none;">
 
+    <!-- Start IGO -->
+    <div class="card no-print" style="border:3px solid var(--red);">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+        <div>
+          <div style="font-size:1.1rem;font-weight:700;color:var(--navy);">🚒 Przeprowadź inspekcję IGO</div>
+          <div style="font-size:0.85rem;color:var(--dark-gray);margin-top:4px;">Wybierz jednostkę, zmierz czas alarmowania, wypełnij checklisty, następnie przeprowadź test.</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-danger" style="font-size:1rem;padding:12px 24px;" onclick="openNewProtocol()">🚒 Rozpocznij IGO</button>
+          <button class="btn btn-outline btn-sm" onclick="showSessionQrFromPage()">📱 Kody QR do testów</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Session info -->
     <div class="card no-print">
       <div class="card-title">📋 Informacje o inspekcji</div>
       <div class="stats-row" id="sessionMeta"></div>
+      <div id="qrInlineBox" style="display:none;border-top:1px solid var(--mid-gray);margin-top:12px;"></div>
     </div>
 
     <!-- Summary -->
@@ -151,6 +166,35 @@ function renderProtocols(protocols) {
   }
   html += '</tbody></table></div>';
   el.innerHTML = html;
+}
+
+function showSessionQrFromPage() {
+  // fetch QR codes and show inline
+  fetch(`/api/sessions/${sessionId}/qr`, { headers: authH() })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { alert('Błąd: ' + data.error); return; }
+      const catMeta = {
+        kierowcy:              { label: 'Kierowcy',              desc: '15 pytań, 15 min' },
+        dowodcy:               { label: 'Dowódcy',               desc: '15 pytań, 15 min' },
+        stanowiska_kierowania: { label: 'St. Kierowania',        desc: '10 pytań, 10 min' }
+      };
+      let html = '<div style="display:flex;flex-wrap:wrap;gap:20px;justify-content:center;padding:16px;">';
+      for (const [cat, qr] of Object.entries(data.qrCodes)) {
+        const m = catMeta[cat] || {};
+        html += `<div style="text-align:center;background:#fff;padding:16px;border-radius:8px;border:1px solid #ccc;">
+          <div style="font-weight:700;margin-bottom:4px;">${m.label||cat}</div>
+          <div style="font-size:0.75rem;color:#666;margin-bottom:8px;">${m.desc||''}</div>
+          <img src="${qr.dataUrl}" style="width:160px;height:160px;">
+          <div style="font-size:0.7rem;word-break:break-all;margin-top:6px;color:#555;">${qr.url}</div>
+        </div>`;
+      }
+      html += '</div>';
+      const el = document.getElementById('qrInlineBox');
+      if (el.style.display === 'block') { el.style.display = 'none'; return; }
+      el.innerHTML = html;
+      el.style.display = 'block';
+    });
 }
 
 
