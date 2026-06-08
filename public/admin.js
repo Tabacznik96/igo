@@ -193,7 +193,8 @@ function submitNewSession() {
 
 function showQrModal(data) {
   const grid = document.getElementById('qrGrid');
-  document.getElementById('sessionInfo').textContent = data.name ? `${data.name} (ID: ${data.id})` : `ID sesji: ${data.id}`;
+  document.getElementById('sessionInfo').textContent = data.name || `ID: ${data.id}`;
+  document.getElementById('qrModalTitle').textContent = data.name ? `📱 ${data.name}` : '📱 Kody QR';
 
   const catLabels = {
     kierowcy: { label: 'Kierowcy', desc: '15 pytań, 15 min', color: '#0a1628' },
