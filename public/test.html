@@ -1,1 +1,80 @@
-404: Not Found
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test – PSP Inspekcja</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<div class="test-header">
+  <div class="category-badge" id="categoryBadge">ŁADOWANIE...</div>
+  <h1 id="testTitle">Inspekcja Gotowości Operacyjnej</h1>
+  <p>Państwowa Straż Pożarna</p>
+</div>
+
+<!-- LOADING -->
+<div id="loadingView" class="container" style="text-align:center;padding:60px 20px;">
+  <div style="font-size:2rem;margin-bottom:12px;">⏳</div>
+  <p>Ładowanie testu...</p>
+</div>
+
+<!-- ERROR -->
+<div id="errorView" class="container" style="display:none;padding:40px 20px;">
+  <div class="alert alert-danger" id="errorMsg"></div>
+</div>
+
+<!-- START FORM -->
+<div id="startView" class="container" style="display:none;">
+  <div class="start-form">
+    <h2>Przed testem</h2>
+    <p class="hint">Test jest anonimowy. Podaj tylko nazwę swojej jednostki.</p>
+
+    <div class="info-boxes" id="testInfoBoxes"></div>
+
+    <div class="form-group">
+      <label for="unitName">Jednostka *</label>
+      <input type="text" id="unitName" class="form-control" placeholder="np. JRG Kartuzy" autocomplete="organization">
+    </div>
+    <div id="startError" class="alert alert-danger" style="display:none;"></div>
+    <button class="btn btn-danger btn-block" id="startBtn" onclick="startTest()">
+      ▶ Rozpocznij test
+    </button>
+  </div>
+</div>
+
+<!-- TIMER BAR (shown during test) -->
+<div id="timerBar" class="timer-bar" style="display:none;">
+  <span class="timer-label">Czas:</span>
+  <span class="timer-value" id="timerValue">00:00</span>
+  <div class="timer-progress">
+    <div class="timer-progress-bar" id="timerProgressBar" style="width:100%"></div>
+  </div>
+  <span id="questionCounter" style="font-size:0.85rem;opacity:0.85;">1/1</span>
+</div>
+
+<!-- TEST VIEW -->
+<div id="testView" class="container" style="display:none;padding-top:16px;">
+  <div id="questionSlide"></div>
+
+  <div class="question-nav">
+    <button class="btn btn-outline" id="prevBtn" onclick="prevQuestion()" style="display:none;">← Wstecz</button>
+    <div style="flex:1"></div>
+    <button class="btn btn-outline" id="nextBtn" onclick="nextQuestion()">Dalej →</button>
+    <button class="btn btn-danger" id="finishBtn" onclick="submitTest(false)" style="display:none;">✅ Zakończ</button>
+  </div>
+</div>
+
+<!-- THANK YOU -->
+<div id="thankYouView" class="container" style="display:none;">
+  <div class="thank-you">
+    <div class="icon">✅</div>
+    <h2>Dziękujemy!</h2>
+    <p>Wyniki zostały zapisane.<br>Możesz zamknąć tę stronę.</p>
+  </div>
+</div>
+
+<script src="/test.js"></script>
+</body>
+</html>
