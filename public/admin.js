@@ -84,6 +84,7 @@ function renderSessions(sessions) {
       <td>${status}</td>
       <td>${s.result_count} wynik(ów)</td>
       <td style="white-space:nowrap;">
+        <button class="btn btn-primary btn-sm" onclick="showSessionQr('${s.id}')">📱 QR</button>
         <a href="/report/${s.id}?pwd=${encodeURIComponent(adminPassword)}" target="_blank" class="btn btn-gold btn-sm">📄 Raport</a>
         ${s.active ? `<button class="btn btn-outline btn-sm" onclick="closeSession('${s.id}')">🔒 Zamknij</button>` : ''}
       </td>
@@ -217,6 +218,13 @@ function showQrModal(data) {
 
 function closeModal() {
   document.getElementById('qrModal').classList.remove('active');
+}
+
+function showSessionQr(id) {
+  fetch(`/api/sessions/${id}/qr`, { headers: authHeaders() })
+    .then(r => r.json())
+    .then(data => showQrModal(data))
+    .catch(() => alert('Błąd ładowania kodów QR'));
 }
 
 function closeSession(id) {
