@@ -71,12 +71,12 @@
 
 <script>
 const sessionId = location.pathname.split('/')[2];
-const params = new URLSearchParams(location.search);
-let creds = null;
-try { creds = JSON.parse(decodeURIComponent(params.get('creds') || '{}')); } catch(e) {}
-
-const u = creds && creds.u ? creds.u : (params.get('u') || '');
-const h = creds && creds.h ? creds.h : (params.get('h') || '');
+let u = '', h = '';
+try {
+  const creds = JSON.parse(sessionStorage.getItem('sessionCreds') || '{}');
+  u = creds.u || '';
+  h = creds.h || '';
+} catch(e) {}
 
 const CAT = { kierowcy:'Kierowcy', dowodcy:'Dowódcy', stanowiska_kierowania:'St. Kierowania' };
 

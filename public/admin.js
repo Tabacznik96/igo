@@ -118,7 +118,7 @@ function renderSessions(sessions) {
     const creds = encodeURIComponent(JSON.stringify({ u: currentUser.username, h: currentUser.passwordHash }));
 
     html += `<tr>
-      <td><a href="/session/${s.id}?creds=${creds}" style="color:var(--navy);font-weight:700;text-decoration:none;">${name}</a></td>
+      <td><a href="/session/${s.id}" style="color:var(--navy);font-weight:700;text-decoration:none;" onclick="openSession('${s.id}');return false;">${name}</a></td>
       <td style="font-size:0.85rem;">${creator}</td>
       <td style="font-size:0.85rem;white-space:nowrap;">${date}</td>
       <td>${status}</td>
@@ -272,6 +272,11 @@ function showQrModal(data) {
 
 function closeModal() {
   document.getElementById('qrModal').classList.remove('active');
+}
+
+function openSession(id) {
+  sessionStorage.setItem('sessionCreds', JSON.stringify({ u: currentUser.username, h: currentUser.passwordHash }));
+  window.open(`/session/${id}`, '_blank');
 }
 
 function closeSession(id) {
