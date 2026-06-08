@@ -224,6 +224,28 @@ const PROTOCOL_CONFIG = {
   }
 };
 
+// Alarm procedure checklist items per unit type
+const ALARM_CHECKLISTS = {
+  jrg: [
+    'całkowite otwarcie bramy garażowej',
+    'założenie przez załogę ubrań specjalnych',
+    'zajęcie miejsc oraz zapięcie pasów bezpieczeństwa w samochodzie pożarniczym',
+    'zamknięcie przez załogę drzwi oraz skrytek',
+    'włączenie świateł drogowych lub mijania',
+    'włączenie sygnałów alarmowych świetlnych i akustycznych'
+  ],
+  osp: [
+    'całkowite otwarcie bramy garażowej',
+    'założenie przez załogę ubrań specjalnych',
+    'zajęcie miejsc oraz zapięcie pasów bezpieczeństwa w samochodzie pożarniczym',
+    'zamknięcie przez załogę drzwi oraz skrytek',
+    'włączenie świateł drogowych lub mijania',
+    'włączenie sygnałów alarmowych świetlnych i akustycznych',
+    'zgłoszenia wyjazdu zadysponowanego zastępu drogą radiową'
+  ],
+  sk: []
+};
+
 const GRADE_SCALE = [
   { minPct: 91, grade: 6, label: 'celujący',        color: '#27ae60' },
   { minPct: 81, grade: 5, label: 'bardzo dobry',    color: '#2ecc71' },
@@ -359,24 +381,44 @@ async function loadExistingProtocol() {
 
 function initSectionData() {
   sectionData = {};
+
+  // Protocol-level metadata
+  sectionData.meta = {
+    location: '',
+    teamMembers: [
+      { name: '', role: 'przewodniczący Zespołu' },
+      { name: '', role: 'członek Zespołu' },
+      { name: '', role: 'członek Zespołu' },
+      { name: '', role: 'członek Zespołu' }
+    ],
+    hourFrom: '', hourTo: '',
+    presence: [{ name: '', role: '' }, { name: '', role: '' }],
+    recommendations: ['', '', '', '', ''],
+    serviceNotes: '',
+    dorazneActions: '',
+    uwagiFinal: ''
+  };
+
   const cfg = PROTOCOL_CONFIG[unitType];
   for (const sec of cfg.sections) {
     if (sec.type === 'alarm') {
-      sectionData[sec.id] = { timeSeconds: null, points: null };
+      const cl = {};
+      (ALARM_CHECKLISTS[unitType] || []).forEach((_, i) => { cl[i+1] = false; });
+      sectionData[sec.id] = { timeSeconds: null, points: null, alarmChecklist: cl, notes: '' };
     } else if (sec.type === 'firefighters') {
-      sectionData[sec.id] = { people: [], points: sec.maxPoints };
+      sectionData[sec.id] = { people: [], points: sec.maxPoints, commanderName: '', deputyName: '', shiftLeaderName: '', notes21: '', notes22: '', notes: '' };
     } else if (sec.type === 'checklist_points') {
       const items = {};
       for (const it of sec.items) items[it.id] = 'ok';
-      sectionData[sec.id] = { items, points: sec.maxPoints };
+      sectionData[sec.id] = { items, points: sec.maxPoints, notes: '', withdrawnVehicles: [] };
     } else if (sec.type === 'test_link') {
-      sectionData[sec.id] = { resultId: null, score: null, total: null, points: null };
+      sectionData[sec.id] = { resultId: null, score: null, total: null, points: null, avgDownodcy: '', avgRatownicy: '', avgKierowcy: '', notes: '' };
     } else if (sec.type === 'exercise') {
       const errors = {};
       for (const e of sec.errors) errors[e.id] = { checked: false, count: 1 };
       const criticalErrors = {};
       for (const e of (sec.criticalErrors || [])) criticalErrors[e.id] = false;
-      sectionData[sec.id] = { errors, criticalErrors, extraErrors: [], points: sec.maxPoints };
+      sectionData[sec.id] = { errors, criticalErrors, extraErrors: [], points: sec.maxPoints, assumption: '', notes: '' };
     }
   }
 }
@@ -405,7 +447,8 @@ function renderMainScreen() {
 
 function renderSectionNav() {
   const cfg = PROTOCOL_CONFIG[unitType];
-  let html = '';
+  let html = `<button class="sec-nav-btn ${currentSectionId==='meta'?'active':''} done"
+    onclick="switchSection('meta')">📋 Dane protokołu<span class="sec-pts">—</span></button>`;
   for (const sec of cfg.sections) {
     const sd = sectionData[sec.id] || {};
     const pts = getPoints(sec, sd);
@@ -422,7 +465,114 @@ function switchSection(id) {
   renderSection(id);
 }
 
+// ── META (protocol-level data) ──────────────────────────────────────────────
+function renderMeta(m) {
+  const tm = m.teamMembers || [];
+  const teamRows = tm.map((t, i) => `
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+      <span style="min-width:20px;font-weight:bold;">${i+1}.</span>
+      <input type="text" class="form-control" style="flex:2;" placeholder="Imię i nazwisko"
+        value="${esc(t.name)}" oninput="metaTeamName(${i},this.value)">
+      <input type="text" class="form-control" style="flex:1;" placeholder="Rola"
+        value="${esc(t.role)}" oninput="metaTeamRole(${i},this.value)">
+    </div>`).join('');
+
+  const presRows = (m.presence||[]).map((p, i) => `
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+      <span style="min-width:20px;font-weight:bold;">${i+1}.</span>
+      <input type="text" class="form-control" style="flex:2;" placeholder="Imię i nazwisko"
+        value="${esc(p.name)}" oninput="metaPresenceName(${i},this.value)">
+      <input type="text" class="form-control" style="flex:1;" placeholder="Stanowisko/funkcja"
+        value="${esc(p.role)}" oninput="metaPresenceRole(${i},this.value)">
+    </div>`).join('');
+
+  const rec = m.recommendations || ['','','','',''];
+  const recRows = rec.map((r, i) => `
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+      <span style="min-width:20px;font-weight:bold;">${i+1}.</span>
+      <input type="text" class="form-control" value="${esc(r)}" oninput="metaRec(${i},this.value)" placeholder="Zalecenie…">
+    </div>`).join('');
+
+  return `<div style="padding:4px 0;">
+
+  <div class="form-group">
+    <label style="font-weight:bold;">Miejscowość inspekcji</label>
+    <input type="text" class="form-control" value="${esc(m.location||'')}" oninput="metaSet('location',this.value)" placeholder="np. Kraków">
+  </div>
+
+  <div class="form-group">
+    <label style="font-weight:bold;">Skład zespołu inspekcyjnego</label>
+    <div style="font-size:0.82rem;color:#666;margin-bottom:6px;">Wpisz imię i nazwisko każdego członka zespołu</div>
+    ${teamRows}
+  </div>
+
+  <div class="form-group">
+    <label style="font-weight:bold;">Godziny inspekcji</label>
+    <div style="display:flex;gap:12px;align-items:center;">
+      <input type="time" class="form-control" style="width:140px;" value="${esc(m.hourFrom||'')}" oninput="metaSet('hourFrom',this.value)">
+      <span>—</span>
+      <input type="time" class="form-control" style="width:140px;" value="${esc(m.hourTo||'')}" oninput="metaSet('hourTo',this.value)">
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label style="font-weight:bold;">Osoby obecne podczas inspekcji</label>
+    ${presRows}
+  </div>
+
+  <hr style="margin:16px 0;">
+  <div style="font-weight:bold;font-size:1rem;margin-bottom:10px;">VII. Zalecenia zespołu inspekcyjnego</div>
+  ${recRows}
+
+  <div class="form-group">
+    <label style="font-weight:bold;">Uwagi do warunków pełnienia służby</label>
+    <textarea class="form-control" rows="3" oninput="metaSet('serviceNotes',this.value)"
+      placeholder="Zastrzeżenia dot. zakwaterowania, stanu pomieszczeń, itp.">${esc(m.serviceNotes||'')}</textarea>
+  </div>
+
+  <hr style="margin:16px 0;">
+  <div class="form-group">
+    <label style="font-weight:bold;">IX. Doraźne działania podjęte podczas inspekcji</label>
+    <textarea class="form-control" rows="3" oninput="metaSet('dorazneActions',this.value)"
+      placeholder="Opisać podjęte działania lub wpisać: „Nie podejmowano".">${esc(m.dorazneActions||'')}</textarea>
+  </div>
+
+  <div class="form-group">
+    <label style="font-weight:bold;">X. Uwagi i wnioski</label>
+    <textarea class="form-control" rows="4" oninput="metaSet('uwagiFinal',this.value)"
+      placeholder="Uwagi, odmowa podpisania protokołu lub „Uwag nie wniesiono".">${esc(m.uwagiFinal||'')}</textarea>
+  </div>
+
+  </div>`;
+}
+
+function metaSet(key, val) {
+  sectionData.meta[key] = val;
+  autoSave();
+}
+function metaTeamName(i, val) {
+  sectionData.meta.teamMembers[i].name = val; autoSave();
+}
+function metaTeamRole(i, val) {
+  sectionData.meta.teamMembers[i].role = val; autoSave();
+}
+function metaPresenceName(i, val) {
+  sectionData.meta.presence[i].name = val; autoSave();
+}
+function metaPresenceRole(i, val) {
+  sectionData.meta.presence[i].role = val; autoSave();
+}
+function metaRec(i, val) {
+  sectionData.meta.recommendations[i] = val; autoSave();
+}
+
 function renderSection(id) {
+  if (id === 'meta') {
+    document.getElementById('sectionContent').innerHTML =
+      `<div class="sec-header"><h2>📋 Dane protokołu</h2><div class="sec-maxpts">Informacje do wydruku</div></div>` +
+      renderMeta(sectionData.meta);
+    return;
+  }
   const cfg = PROTOCOL_CONFIG[unitType];
   const sec = cfg.sections.find(s => s.id === id);
   const sd  = sectionData[id];
@@ -474,6 +624,12 @@ function renderAlarm(sec, sd) {
     <div class="alarm-result" id="alarmResult">
       ${curTime !== null ? `<div class="points-big">${timeToPoints(sec.table, curTime)} pkt</div><div>za czas ${formatTime(curTime, isMin)}</div>` : ''}
     </div>
+    ${renderAlarmChecklist(sd)}
+    <div class="form-group" style="margin-top:12px;">
+      <label>Uwagi w zakresie alarmowania:</label>
+      <textarea class="form-control" rows="2" oninput="alarmNotesChange(this.value)"
+        placeholder="Uwagi i wnioski…">${esc(sd.notes||'')}</textarea>
+    </div>
   </div>`;
 }
 
@@ -508,6 +664,41 @@ function swReset() {
   sectionData[currentSectionId].points = null;
   updateSecPts(secCfg, sectionData[currentSectionId]);
   updateScoreBar();
+}
+
+function renderAlarmChecklist(sd) {
+  const items = ALARM_CHECKLISTS[unitType] || [];
+  if (!items.length) return '';
+  const cl = sd.alarmChecklist || {};
+  const rows = items.map((name, i) => {
+    const checked = cl[i+1] || false;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid #eee;">
+      <input type="checkbox" ${checked?'checked':''} onchange="alarmClCheck(${i+1},this.checked)"
+        style="width:18px;height:18px;cursor:pointer;">
+      <span style="${checked?'color:#c0392b;font-weight:600;':''}">${i+1}. ${name}</span>
+      ${checked?'<span style="margin-left:auto;background:#f8d7da;color:#c0392b;padding:2px 8px;border-radius:4px;font-size:0.82rem;">pkt karny</span>':''}
+    </div>`;
+  }).join('');
+  const anyChecked = Object.values(cl).some(v=>v);
+  return `<div style="margin-top:14px;">
+    <div style="font-weight:bold;margin-bottom:6px;font-size:0.9rem;">Przebieg alarmowania – zaznacz niespełnione elementy:</div>
+    <div style="border:1px solid #ddd;border-radius:6px;padding:8px 12px;background:#fafafa;">
+      ${rows}
+    </div>
+    ${anyChecked?`<div style="margin-top:6px;font-size:0.85rem;color:#c0392b;">⚠️ Zaznaczone pozycje zostaną ujęte jako punkty karne w protokole.</div>`:''}
+  </div>`;
+}
+
+function alarmClCheck(idx, checked) {
+  if (!sectionData[currentSectionId].alarmChecklist) sectionData[currentSectionId].alarmChecklist = {};
+  sectionData[currentSectionId].alarmChecklist[idx] = checked;
+  renderSection(currentSectionId);
+  autoSave();
+}
+
+function alarmNotesChange(val) {
+  sectionData[currentSectionId].notes = val;
+  autoSave();
 }
 
 function onAlarmInput() {
@@ -552,13 +743,56 @@ function formatTime(seconds, asMinutes) {
 // ── FIREFIGHTERS ────────────────────────────────────────────────────────────
 function renderFirefighters(sec, sd) {
   let rows = sd.people.map((p, i) => renderFFRow(sec, p, i)).join('');
+  const shiftBlock = (unitType === 'jrg') ? `
+    <div style="border:1px solid #ddd;border-radius:6px;padding:12px;margin-bottom:14px;background:#f9f9f9;">
+      <div style="font-weight:bold;margin-bottom:10px;">Skład zmiany służbowej</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:0.82rem;">Dowódca jednostki</label>
+          <input type="text" class="form-control" value="${esc(sd.commanderName||'')}"
+            oninput="ffMetaChange('commanderName',this.value)" placeholder="Imię i nazwisko">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:0.82rem;">Zastępca Dowódcy</label>
+          <input type="text" class="form-control" value="${esc(sd.deputyName||'')}"
+            oninput="ffMetaChange('deputyName',this.value)" placeholder="Imię i nazwisko">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:0.82rem;">Dowódca zmiany</label>
+          <input type="text" class="form-control" value="${esc(sd.shiftLeaderName||'')}"
+            oninput="ffMetaChange('shiftLeaderName',this.value)" placeholder="Imię i nazwisko">
+        </div>
+      </div>
+      <div class="form-group" style="margin:0 0 8px;">
+        <label style="font-size:0.82rem;">2.1 Ocena stanu zmiany służbowej – uwagi</label>
+        <textarea class="form-control" rows="2" oninput="ffMetaChange('notes21',this.value)"
+          placeholder="Uwagi dot. stanu minimalnego, zgodności z SWD PSP…">${esc(sd.notes21||'')}</textarea>
+      </div>
+      <div class="form-group" style="margin:0;">
+        <label style="font-size:0.82rem;">2.2 Ocena stanu psychofizycznego – uwagi (lub BK)</label>
+        <textarea class="form-control" rows="2" oninput="ffMetaChange('notes22',this.value)"
+          placeholder="Brak uwag / błąd krytyczny – opis…">${esc(sd.notes22||'')}</textarea>
+      </div>
+    </div>` : '';
+
   return `
   <div class="ff-wrap">
+    ${shiftBlock}
     <p style="color:var(--dark-gray);font-size:0.85rem;margin-bottom:12px;">Dodaj ratowników i sprawdź wyposażenie każdego z nich. Zaznaczenie „✗" odejmuje punkty.</p>
     <div id="ffList">${rows}</div>
     <button class="btn btn-outline" onclick="addFirefighter()">➕ Dodaj ratownika</button>
     <div class="ff-summary" id="ffSummary"></div>
+    <div class="form-group" style="margin-top:12px;">
+      <label>Uwagi ogólne do działu:</label>
+      <textarea class="form-control" rows="2" oninput="ffMetaChange('notes',this.value)"
+        placeholder="Uwagi…">${esc(sd.notes||'')}</textarea>
+    </div>
   </div>`;
+}
+
+function ffMetaChange(key, val) {
+  sectionData[currentSectionId][key] = val;
+  autoSave();
 }
 
 function renderFFRow(sec, person, idx) {
@@ -635,6 +869,7 @@ function calcFFPoints(sec) {
 function renderChecklist(sec, sd) {
   const rows = sec.items.map(it => {
     const val = sd.items[it.id] || 'ok';
+    const note = (sd.itemNotes && sd.itemNotes[it.id]) || '';
     return `
     <div class="chk-row">
       <div class="chk-name">${it.name}</div>
@@ -653,9 +888,77 @@ function renderChecklist(sec, sd) {
             onchange="chkChange('${sec.id}','${it.id}','no')"> ❌ Brak / nie
         </label>
       </div>
+      <input type="text" class="form-control" style="margin-top:4px;font-size:0.82rem;"
+        placeholder="Uwagi do pozycji…" value="${esc(note)}"
+        oninput="chkItemNote('${sec.id}','${it.id}',this.value)">
     </div>`;
   }).join('');
-  return `<div class="chk-wrap">${rows}</div>`;
+
+  // Withdrawn vehicles table - shown for vehicles section
+  const wvBlock = sec.id === 'vehicles' ? renderWithdrawnVehicles(sd) : '';
+
+  return `<div class="chk-wrap">
+    ${rows}
+    ${wvBlock}
+    <div class="form-group" style="margin-top:12px;">
+      <label>Uwagi ogólne do działu:</label>
+      <textarea class="form-control" rows="2" oninput="chkNotes('${sec.id}',this.value)"
+        placeholder="Uwagi…">${esc(sd.notes||'')}</textarea>
+    </div>
+  </div>`;
+}
+
+function renderWithdrawnVehicles(sd) {
+  const wv = sd.withdrawnVehicles || [];
+  const rows = wv.map((v, i) => `
+    <tr>
+      <td style="width:30px;text-align:center;font-size:0.85rem;">${i+1}</td>
+      <td><input type="text" class="form-control" style="font-size:0.82rem;" value="${esc(v.name)}"
+        oninput="wvChange(${i},'name',this.value)" placeholder="Rodzaj pojazdu/sprzętu"></td>
+      <td style="width:110px;"><input type="date" class="form-control" style="font-size:0.82rem;" value="${esc(v.date)}"
+        oninput="wvChange(${i},'date',this.value)"></td>
+      <td><input type="text" class="form-control" style="font-size:0.82rem;" value="${esc(v.reason)}"
+        oninput="wvChange(${i},'reason',this.value)" placeholder="Powód wycofania"></td>
+      <td style="width:36px;"><button class="btn btn-outline btn-sm" onclick="wvRemove(${i})">✕</button></td>
+    </tr>`).join('');
+
+  return `<div style="margin-top:14px;border:1px solid #ddd;border-radius:6px;padding:10px;background:#f9f9f9;">
+    <div style="font-weight:bold;margin-bottom:8px;font-size:0.9rem;">Pojazdy i sprzęt wycofane z podziału bojowego</div>
+    <table style="width:100%;border-collapse:collapse;">
+      <thead><tr style="font-size:0.82rem;background:#eee;">
+        <th style="padding:4px;border:1px solid #ccc;">Lp.</th>
+        <th style="padding:4px;border:1px solid #ccc;">Rodzaj pojazdu / sprzętu</th>
+        <th style="padding:4px;border:1px solid #ccc;">Data wycofania</th>
+        <th style="padding:4px;border:1px solid #ccc;">Powód wycofania</th>
+        <th style="padding:4px;border:1px solid #ccc;"></th>
+      </tr></thead>
+      <tbody id="wvTableBody">${rows}</tbody>
+    </table>
+    <button class="btn btn-outline btn-sm" onclick="wvAdd()" style="margin-top:8px;">➕ Dodaj pojazd</button>
+  </div>`;
+}
+
+function wvAdd() {
+  if (!sectionData[currentSectionId].withdrawnVehicles) sectionData[currentSectionId].withdrawnVehicles = [];
+  sectionData[currentSectionId].withdrawnVehicles.push({ name: '', date: '', reason: '' });
+  renderSection(currentSectionId);
+}
+function wvRemove(i) {
+  sectionData[currentSectionId].withdrawnVehicles.splice(i, 1);
+  renderSection(currentSectionId);
+}
+function wvChange(i, key, val) {
+  sectionData[currentSectionId].withdrawnVehicles[i][key] = val;
+  autoSave();
+}
+function chkItemNote(secId, itemId, val) {
+  if (!sectionData[secId].itemNotes) sectionData[secId].itemNotes = {};
+  sectionData[secId].itemNotes[itemId] = val;
+  autoSave();
+}
+function chkNotes(secId, val) {
+  sectionData[secId].notes = val;
+  autoSave();
 }
 
 function chkChange(secId, itemId, val) {
@@ -717,7 +1020,45 @@ function renderTestLink(sec, sd) {
     <div class="alarm-result" id="testResult">
       ${sd.points !== null ? `<div class="points-big">${sd.points} pkt</div>` : ''}
     </div>
+    <div style="border:1px solid #ddd;border-radius:6px;padding:12px;margin-top:14px;background:#f9f9f9;">
+      <div style="font-weight:bold;margin-bottom:8px;font-size:0.9rem;">Średnie wyników grup (do protokołu)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:0.82rem;">Średnia – Dowódcy (pkt)</label>
+          <input type="number" class="form-control" min="0" max="${sec.maxPoints}" step="0.1"
+            value="${sd.avgDownodcy!==undefined&&sd.avgDownodcy!==''?sd.avgDownodcy:''}"
+            oninput="testAvgChange('avgDownodcy',this.value)" placeholder="0.0">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:0.82rem;">Średnia – Ratownicy (pkt)</label>
+          <input type="number" class="form-control" min="0" max="${sec.maxPoints}" step="0.1"
+            value="${sd.avgRatownicy!==undefined&&sd.avgRatownicy!==''?sd.avgRatownicy:''}"
+            oninput="testAvgChange('avgRatownicy',this.value)" placeholder="0.0">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:0.82rem;">Średnia – Kierowcy (pkt)</label>
+          <input type="number" class="form-control" min="0" max="${sec.maxPoints}" step="0.1"
+            value="${sd.avgKierowcy!==undefined&&sd.avgKierowcy!==''?sd.avgKierowcy:''}"
+            oninput="testAvgChange('avgKierowcy',this.value)" placeholder="0.0">
+        </div>
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:10px;">
+      <label>Uwagi do testu wiedzy:</label>
+      <textarea class="form-control" rows="2" oninput="testNotesChange(this.value)"
+        placeholder="Uwagi…">${esc(sd.notes||'')}</textarea>
+    </div>
   </div>`;
+}
+
+function testAvgChange(key, val) {
+  const v = parseFloat(val);
+  sectionData[currentSectionId][key] = isNaN(v) ? '' : v;
+  autoSave();
+}
+function testNotesChange(val) {
+  sectionData[currentSectionId].notes = val;
+  autoSave();
 }
 
 function testSelectChange(secId) {
@@ -816,6 +1157,11 @@ function renderExercise(sec, sd) {
 
   return `
   <div class="ex-wrap">
+    <div class="form-group">
+      <label style="font-weight:bold;">Treść założenia do ćwiczenia:</label>
+      <textarea class="form-control" rows="3" id="exAssumption" oninput="exAssumptionChange('${sec.id}',this.value)"
+        placeholder="Opisz założenia ćwiczenia…">${esc(sd.assumption||'')}</textarea>
+    </div>
     ${critErrors.length ? `
     <div style="margin-bottom:16px;">
       <div style="font-weight:700;color:#c0392b;font-size:0.9rem;margin-bottom:6px;padding:6px 10px;background:#fff0f0;border-radius:4px;border:1px solid #e74c3c;">
@@ -892,6 +1238,11 @@ function exCheck(secId, errorId, checked) {
 function exCount(secId, errorId, val) {
   sectionData[secId].errors[errorId].count = Math.max(1, parseInt(val) || 1);
   calcExercise(secId);
+}
+
+function exAssumptionChange(secId, val) {
+  sectionData[secId].assumption = val;
+  autoSave();
 }
 
 function exNotesChange(secId, val) {

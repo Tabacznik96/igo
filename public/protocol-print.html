@@ -76,10 +76,11 @@ function goBackFromPrint(){
 
   const cfg=PROTOCOL_CONFIG[proto.unit_type];
   const sd=proto.sections_json||{};
+  const meta=sd.meta||{};
   const date=new Date(proto.created_at).toLocaleDateString('pl-PL');
   let html='';
-  if(proto.unit_type==='jrg') html=buildJRG(proto,cfg,sd,date);
-  else if(proto.unit_type==='osp') html=buildOSP(proto,cfg,sd,date);
+  if(proto.unit_type==='jrg') html=buildJRG(proto,cfg,sd,date,meta);
+  else if(proto.unit_type==='osp') html=buildOSP(proto,cfg,sd,date,meta);
   else html=buildGeneric(proto,cfg,sd,date);
 
   document.getElementById('loadingMsg').style.display='none';
@@ -97,8 +98,17 @@ function spts(secId,cfg,sd){
   return v!=null?v:0;
 }
 
+function metaVal(meta,key,fallback){return(meta&&meta[key])||fallback||'';}
+function metaTeam(meta){
+  const tm=(meta&&meta.teamMembers)||[];
+  return[['1.',tm[0]&&tm[0].name||'',tm[0]&&tm[0].role||'przewodniczący Zespołu'],
+         ['2.',tm[1]&&tm[1].name||'',tm[1]&&tm[1].role||'członek Zespołu'],
+         ['3.',tm[2]&&tm[2].name||'',tm[2]&&tm[2].role||'członek Zespołu'],
+         ['4.',tm[3]&&tm[3].name||'',tm[3]&&tm[3].role||'członek Zespołu']];
+}
+
 // ─── JRG ────────────────────────────────────────────────────────────
-function buildJRG(proto,cfg,sd,date){
+function buildJRG(proto,cfg,sd,date,meta){
   const aSd=sd.alarm||{}, fSd=sd.firefighters||{}, vSd=sd.vehicles||{};
   const dSd=sd.docs||{}, tSd=sd.test||{}, xSd=sd.exercise||{};
   const aP=spts('alarm',cfg,sd), fP=spts('firefighters',cfg,sd),
@@ -112,7 +122,7 @@ function buildJRG(proto,cfg,sd,date){
 
   return `<div class="form-wrap">
 <div class="annex">Załącznik Nr 8</div>
-<div class="loc-date">(miejscowość, data)</div>
+<div class="loc-date">${meta&&meta.location?e(meta.location)+', ':''}<em>(miejscowość, data)</em> &nbsp; ${date}</div>
 <div class="logo-row">
   <div class="eagle">🦅</div>
   <div class="komenda">KOMENDA …………<br>PAŃSTWOWEJ STRAŻY POŻARNEJ</div>
@@ -128,18 +138,18 @@ function buildJRG(proto,cfg,sd,date){
 <p class="intro">Na podstawie ustawy z dnia 24 sierpnia 1991 r. o Państwowej Straży Pożarnej oraz <strong>zarządzenia nr … Komendanta Głównego Państwowej Straży Pożarnej z dnia ....... 2024 r. w sprawie sposobu przeprowadzania inspekcji gotowości operacyjnej podmiotów krajowego systemu ratowniczo–gaśniczego</strong>, zespół inspekcyjny w składzie:</p>
 
 <table style="margin:4px 0;">
-${[['1.',e(proto.inspector_name||''),'przewodniczący Zespołu'],['2.','','członek Zespołu'],['3.','','członek Zespołu'],['4.','','członek Zespołu']].map(([n,v,r])=>`<tr>
+${metaTeam(meta).map(([n,v,r])=>`<tr>
 <td class="nb" style="width:20px;">${n}</td>
-<td class="nb bl" style="min-width:220px;">${v}&nbsp;</td>
+<td class="nb bl" style="min-width:220px;">${v||'&nbsp;'}</td>
 <td class="nb" style="padding-left:8px;">- ${r}</td></tr>`).join('')}
 </table>
 
 <div style="margin:6px 0;font-size:10pt;">
-w dniu: <u>&nbsp;&nbsp;${date}&nbsp;&nbsp;</u> &nbsp;&nbsp; w godzinach: <u>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</u> - <u>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</u>
+w dniu: <u>&nbsp;&nbsp;${date}&nbsp;&nbsp;</u> &nbsp;&nbsp; w godzinach: <u>&nbsp;&nbsp;${(meta&&meta.hourFrom)||'&nbsp;&nbsp;&nbsp;&nbsp;'}&nbsp;&nbsp;</u> - <u>&nbsp;&nbsp;${(meta&&meta.hourTo)||'&nbsp;&nbsp;&nbsp;&nbsp;'}&nbsp;&nbsp;</u>
 </div>
 <div style="font-size:10pt;margin:4px 0;">w obecności:</div>
 <table style="margin:2px 0;">
-${[1,2].map(n=>`<tr><td class="nb" style="width:20px;">${n}.</td><td class="nb bl" style="min-width:220px;">&nbsp;</td><td class="nb" style="padding-left:8px;">- stanowisko/funkcja</td></tr>`).join('')}
+${((meta&&meta.presence)||[{name:'',role:''},{name:'',role:''}]).map((p,i)=>`<tr><td class="nb" style="width:20px;">${i+1}.</td><td class="nb bl" style="min-width:220px;">${p.name?e(p.name):'&nbsp;'}</td><td class="nb" style="padding-left:8px;">- ${p.role||'stanowisko/funkcja'}</td></tr>`).join('')}
 </table>
 <p style="font-size:10pt;margin:8px 0;">przeprowadzając inspekcję gotowości operacyjnej ustalił, co następuje:</p>
 
@@ -156,16 +166,16 @@ ${[1,2].map(n=>`<tr><td class="nb" style="width:20px;">${n}.</td><td class="nb b
 <table style="margin-top:6px;">
 <thead><tr><th class="lp">Lp.</th><th>Przebieg alarmowania</th><th style="width:100px;">Punkty karne</th></tr></thead>
 <tbody>
-${['całkowite otwarcie bramy garażowej','założenie przez załogę ubrań specjalnych','zajęcie miejsc oraz zapięcie pasów bezpieczeństwa w samochodzie pożarniczym','zamknięcie przez załogę drzwi oraz skrytek','włączenie świateł drogowych lub mijania','włączenie sygnałów alarmowych świetlnych i akustycznych'].map((item,i)=>`<tr><td class="lp">${i+1})</td><td>${item}</td><td></td></tr>`).join('')}
-<tr style="background:#f0f0f0;font-weight:bold;"><td colspan="2" class="c">SUMA PUNKTÓW KARNYCH</td><td></td></tr>
+${['całkowite otwarcie bramy garażowej','założenie przez załogę ubrań specjalnych','zajęcie miejsc oraz zapięcie pasów bezpieczeństwa w samochodzie pożarniczym','zamknięcie przez załogę drzwi oraz skrytek','włączenie świateł drogowych lub mijania','włączenie sygnałów alarmowych świetlnych i akustycznych'].map((item,i)=>{const pen=(aSd.alarmChecklist&&aSd.alarmChecklist[i+1])?'<strong style="color:#c0392b;">1</strong>':'';return`<tr style="${aSd.alarmChecklist&&aSd.alarmChecklist[i+1]?'background:#fff0f0;':''}"><td class="lp">${i+1})</td><td>${item}</td><td class="c">${pen}</td></tr>`;}).join('')}
+<tr style="background:#f0f0f0;font-weight:bold;"><td colspan="2" class="c">SUMA PUNKTÓW KARNYCH</td><td class="c">${Object.values(aSd.alarmChecklist||{}).filter(v=>v).length||''}</td></tr>
 </tbody></table>
 
-<div style="font-size:10pt;margin:4px 0;">Uwagi i wnioski w zakresie alarmowania:${dots(2)}</div>
+<div style="font-size:10pt;margin:4px 0;">Uwagi i wnioski w zakresie alarmowania:${aSd.notes?'<br><em>'+e(aSd.notes)+'</em>':''}${dots(2)}</div>
 <table><tr class="sum"><td><strong>Suma uzyskanych punktów.</strong> Ocena alarmowania – punktacja od 0 do 10 (lub BK)</td><td class="rng c">0-10</td><td class="earn c" style="font-size:13pt;"><strong>${aP}</strong></td></tr></table>
 
 <!-- II. GOTOWOŚĆ RATOWNIKÓW -->
 <div class="sec-title">II. GOTOWOŚĆ RATOWNIKÓW</div>
-<div style="font-size:10pt;"><strong>Dowódca jednostki:</strong>${dots(1)}<strong>Zastępca Dowódcy jednostki:</strong>${dots(1)}<strong>Dowódca zmiany:</strong>${dots(1)}</div>
+<div style="font-size:10pt;"><strong>Dowódca jednostki:</strong> ${fSd.commanderName?'<u>'+e(fSd.commanderName)+'</u>':dots(1)}<strong>Zastępca Dowódcy jednostki:</strong> ${fSd.deputyName?'<u>'+e(fSd.deputyName)+'</u>':dots(1)}<strong>Dowódca zmiany:</strong> ${fSd.shiftLeaderName?'<u>'+e(fSd.shiftLeaderName)+'</u>':dots(1)}</div>
 
 <table style="margin-top:6px;">
 <thead>
@@ -179,12 +189,12 @@ ${['Dowódcy','Operatorzy sprzętu specjalistycznego lub ratownicy kierowcy','Ra
 
 <table style="margin-top:6px;">
 <tr><td colspan="2"><strong>2.1 Ocena stanu zmiany służbowej:</strong></td></tr>
-<tr><td colspan="2">Uwagi:${dots(3)}</td></tr>
+<tr><td colspan="2">Uwagi:${fSd.notes21?'<br><em>'+e(fSd.notes21)+'</em>':''}${dots(2)}</td></tr>
 <tr><td colspan="2" class="note-box" style="border:1px solid #ccc;">W uwagach należy umieścić informacje dotyczące spełnienia wymaganego stanu minimalnego, zgodności stanu faktycznego zmiany z SWD PSP, stanu osobowego specjalistycznej grupy (jeżeli została utworzona na bazie jednostki)</td></tr>
 </table>
 <table style="margin-top:6px;">
 <tr><td><strong>2.2 Ocena stanu psychofizycznego zmiany służbowej (opis lub BK)</strong></td></tr>
-<tr><td>Uwagi:${dots(3)}</td></tr>
+<tr><td>Uwagi:${fSd.notes22?'<br><em>'+e(fSd.notes22)+'</em>':''}${dots(2)}</td></tr>
 <tr><td class="note-box" style="border:1px solid #ccc;text-align:center;font-style:italic;">Wpisać „brak uwag" lub „błąd krytyczny" wraz z podaniem powodu</td></tr>
 </table>
 
@@ -214,7 +224,7 @@ ${['Dowódcy','Operatorzy sprzętu specjalistycznego lub ratownicy kierowcy','Ra
 <table style="margin-top:8px;">
 <thead><tr><th colspan="4" style="text-align:left;">3.2. Ocena pojazdów i sprzętu wycofanego z podziału bojowego</th></tr>
 <tr><th class="lp">Lp.</th><th>Rodzaj pojazdu / sprzętu</th><th style="width:100px;">Data wycofania</th><th style="width:130px;">Powód wycofania</th></tr></thead>
-<tbody>${[1,2,3].map(i=>`<tr><td class="lp c">${i}</td><td>&nbsp;</td><td></td><td></td></tr>`).join('')}</tbody>
+<tbody>${((vSd.withdrawnVehicles&&vSd.withdrawnVehicles.length)?vSd.withdrawnVehicles:[{name:'',date:'',reason:''},{name:'',date:'',reason:''},{name:'',date:'',reason:''}]).map((v,i)=>`<tr><td class="lp c">${i+1}</td><td>${v.name?e(v.name):'&nbsp;'}</td><td>${v.date?e(v.date):'&nbsp;'}</td><td>${v.reason?e(v.reason):'&nbsp;'}</td></tr>`).join('')}</tbody>
 </table>
 <div style="font-size:10pt;margin:2px 0;">Uwagi:${dots(3)}</div>
 <div class="note-box">Wszelkie uwagi dotyczące wycofania z podziału bojowego pojazdów i sprzętu winny znaleźć odzwierciedlenie w tabeli, w której należy podać: rodzaj pojazdu lub sprzętu oraz datę i powód wycofania.</div>
@@ -249,10 +259,10 @@ ${jrgVehicleRows(vSd,cfg.sections.find(s=>s.id==='vehicles'))}
 </tr></thead>
 <tbody>
 <tr><td>&nbsp;</td><td class="rng">0-15</td><td class="earn c" style="font-size:13pt;"><strong>${tP}</strong></td></tr>
-<tr><td style="font-weight:bold;">Średnia punktów dowódców</td><td colspan="2">${tSd.avgDownodcy!=null?'<strong>'+e(String(tSd.avgDownodcy))+'</strong>':'&nbsp;'} pkt</td></tr>
-<tr><td style="font-weight:bold;">Średnia punktów ratownicy</td><td colspan="2">${tSd.avgRatownicy!=null?'<strong>'+e(String(tSd.avgRatownicy))+'</strong>':'&nbsp;'} pkt</td></tr>
-<tr><td style="font-weight:bold;">Średnia punktów kierowcy</td><td colspan="2">${tSd.avgKierowcy!=null?'<strong>'+e(String(tSd.avgKierowcy))+'</strong>':'&nbsp;'} pkt</td></tr>
-<tr><td colspan="3">Uwagi:${dots(3)}</td></tr>
+<tr><td style="font-weight:bold;">Średnia punktów dowódców</td><td colspan="2">${tSd.avgDownodcy!==undefined&&tSd.avgDownodcy!==''?'<strong>'+e(String(tSd.avgDownodcy))+'</strong>':'&nbsp;'} pkt</td></tr>
+<tr><td style="font-weight:bold;">Średnia punktów ratownicy</td><td colspan="2">${tSd.avgRatownicy!==undefined&&tSd.avgRatownicy!==''?'<strong>'+e(String(tSd.avgRatownicy))+'</strong>':'&nbsp;'} pkt</td></tr>
+<tr><td style="font-weight:bold;">Średnia punktów kierowcy</td><td colspan="2">${tSd.avgKierowcy!==undefined&&tSd.avgKierowcy!==''?'<strong>'+e(String(tSd.avgKierowcy))+'</strong>':'&nbsp;'} pkt</td></tr>
+<tr><td colspan="3">Uwagi:${tSd.notes?'<br><em>'+e(tSd.notes)+'</em>':''}${dots(2)}</td></tr>
 </tbody></table>
 
 <!-- VI. ĆWICZENIE -->
@@ -267,13 +277,13 @@ ${jrgExerciseTable(xSd,cfg.sections.find(s=>s.id==='exercise'),xP)}
 <div class="sec-title">VII. INFORMACJE DODATKOWE</div>
 <table>
 <thead><tr><th colspan="2" class="c">ZALECENIA ZESPOŁU INSPEKCYJNEGO</th></tr></thead>
-<tbody>${[1,2,3,4,5].map(i=>`<tr><td style="width:20px;">${i}.</td><td>&nbsp;</td></tr>`).join('')}</tbody>
+<tbody>${((meta&&meta.recommendations)||['','','','','']).map((r,i)=>`<tr><td style="width:20px;">${i+1}.</td><td>${r?e(r):'&nbsp;'}</td></tr>`).join('')}</tbody>
 </table>
 <table style="margin-top:8px;">
 <thead><tr><th class="c">UWAGI DO WARUNKÓW PEŁNIENIA SŁUŻBY PRZEZ DYŻURNYCH JEDNOSTKI RATOWNICZO-GAŚNICZEJ PSP</th></tr></thead>
 <tbody>
 <tr><td style="font-size:9pt;font-style:italic;text-align:center;">Należy opisać wszelkie zastrzeżenia lub nieprawidłowości odnoszące się do warunków pełnienia służby przez strażaków na jednostce ratowniczo-gaśniczej PSP.<br>Ocenie podlega: zakwaterowanie i stan pomieszczeń.<br>Wypisać nieprawidłowości związane ze stanem technicznym pomieszczeń.</td></tr>
-<tr><td>${dots(4)}</td></tr>
+<tr><td>${meta&&meta.serviceNotes?e(meta.serviceNotes):dots(4)}</td></tr>
 </tbody></table>
 
 <!-- VIII. OCENA UZYSKANA -->
@@ -310,12 +320,12 @@ ${[['od 98 do 100 punktów','6','celujący'],['od 93 do 98 punktów','5','bardzo
 
 <!-- IX. DORAŹNE DZIAŁANIA -->
 <div class="sec-title" style="margin-top:14px;">IX. DORAŹNE DZIAŁANIA PODJĘTE PODCZAS INSPEKCJI</div>
-<table><tr><td style="min-height:60px;text-align:center;font-style:italic;padding:16px;">${proto.notes?e(proto.notes):'Opisać podjęte działania lub wpisać: „Nie podejmowano".'}</td></tr></table>
+<table><tr><td style="min-height:60px;padding:10px;">${(meta&&meta.dorazneActions)?e(meta.dorazneActions):(proto.notes?e(proto.notes):'<em style="color:#888;">Opisać podjęte działania lub wpisać: „Nie podejmowano".</em>')}</td></tr></table>
 
 <!-- X. UWAGI I WNIOSKI -->
 <div class="sec-title" style="margin-top:12px;">X. UWAGI I WNIOSKI</div>
 <table>
-<tr><td style="min-height:80px;">${dots(5)}</td></tr>
+<tr><td style="min-height:80px;padding:10px;">${(meta&&meta.uwagiFinal)?e(meta.uwagiFinal):dots(5)}</td></tr>
 <tr><td style="font-size:9pt;font-style:italic;text-align:center;">Kierownik jednostki organizacyjnej PSP, w której prowadzono inspekcję lub jego przedstawiciel został poinformowany o możliwości wniesienia uwag do treści protokołu lub odmowy jego podpisania.</td></tr>
 <tr><td style="font-size:9pt;text-align:center;">Wpisać: uwagi, odmowę podpisania protokołu lub „Uwag nie wniesiono".</td></tr>
 </table>
@@ -444,7 +454,7 @@ ${rows}${extraRows}
 }
 
 // ─── OSP ────────────────────────────────────────────────────────────
-function buildOSP(proto,cfg,sd,date){
+function buildOSP(proto,cfg,sd,date,meta){
   const aSd=sd.alarm||{}, fSd=sd.firefighters||{}, vSd=sd.vehicles||{};
   const tSd=sd.test||{}, xSd=sd.exercise||{};
   const aP=spts('alarm',cfg,sd), fP=spts('firefighters',cfg,sd),
@@ -456,7 +466,7 @@ function buildOSP(proto,cfg,sd,date){
 
   return `<div class="form-wrap">
 <div class="annex">Załącznik Nr 9</div>
-<div class="loc-date">(miejscowość, data)</div>
+<div class="loc-date">${meta&&meta.location?e(meta.location)+', ':''}<em>(miejscowość, data)</em> &nbsp; ${date}</div>
 <div class="logo-row">
   <div class="eagle">🦅</div>
   <div class="komenda">KOMENDA …………<br>PAŃSTWOWEJ STRAŻY POŻARNEJ</div>
@@ -473,12 +483,12 @@ function buildOSP(proto,cfg,sd,date){
 
 <p class="intro">Na podstawie ustawy z dnia 24 sierpnia 1991 r. o Państwowej Straży Pożarnej oraz <strong>zarządzenia nr 10 Komendanta Głównego Państwowej Straży Pożarnej z dnia ........ 2024 r. w sprawie sposobu przeprowadzania inspekcji gotowości operacyjnej podmiotów krajowego systemu ratowniczo–gaśniczego</strong>, zespół inspekcyjny w składzie:</p>
 <table style="margin:4px 0;">
-${[['1.',e(proto.inspector_name||''),'przewodniczący Zespołu'],['2.','','członek Zespołu'],['3.','','członek Zespołu'],['4.','','członek Zespołu']].map(([n,v,r])=>`<tr><td class="nb" style="width:20px;">${n}</td><td class="nb bl" style="min-width:220px;">${v}&nbsp;</td><td class="nb" style="padding-left:8px;">- ${r}</td></tr>`).join('')}
+${metaTeam(meta).map(([n,v,r])=>`<tr><td class="nb" style="width:20px;">${n}</td><td class="nb bl" style="min-width:220px;">${v||'&nbsp;'}</td><td class="nb" style="padding-left:8px;">- ${r}</td></tr>`).join('')}
 </table>
-<div style="margin:6px 0;font-size:10pt;">w dniu: <u>&nbsp;&nbsp;${date}&nbsp;&nbsp;</u> &nbsp;&nbsp; w godzinach: <u>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</u> - <u>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</u></div>
+<div style="margin:6px 0;font-size:10pt;">w dniu: <u>&nbsp;&nbsp;${date}&nbsp;&nbsp;</u> &nbsp;&nbsp; w godzinach: <u>&nbsp;&nbsp;${(meta&&meta.hourFrom)||'&nbsp;&nbsp;&nbsp;&nbsp;'}&nbsp;&nbsp;</u> - <u>&nbsp;&nbsp;${(meta&&meta.hourTo)||'&nbsp;&nbsp;&nbsp;&nbsp;'}&nbsp;&nbsp;</u></div>
 <div style="font-size:10pt;margin:4px 0;">w obecności:</div>
 <table style="margin:2px 0;">
-${[1,2].map(n=>`<tr><td class="nb" style="width:20px;">${n}.</td><td class="nb bl" style="min-width:220px;">&nbsp;</td><td class="nb" style="padding-left:8px;">- stanowisko/funkcja</td></tr>`).join('')}
+${((meta&&meta.presence)||[{name:'',role:''},{name:'',role:''}]).map((p,i)=>`<tr><td class="nb" style="width:20px;">${i+1}.</td><td class="nb bl" style="min-width:220px;">${p.name?e(p.name):'&nbsp;'}</td><td class="nb" style="padding-left:8px;">- ${p.role||'stanowisko/funkcja'}</td></tr>`).join('')}
 </table>
 <p style="font-size:10pt;margin:8px 0;">przeprowadzając inspekcję gotowości operacyjnej ustalił co następuje:</p>
 
