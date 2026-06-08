@@ -14,18 +14,19 @@
     <h1>Inspekcja Gotowości Operacyjnej</h1>
     <p>Państwowa Straż Pożarna</p>
   </div>
-  <div style="margin-left:auto; display:flex; gap:8px;">
+  <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
     <a href="/nauka.html" class="btn btn-gold btn-sm">📚 Nauka</a>
     <button id="loginToggleBtn" class="btn btn-outline btn-sm" style="border-color:rgba(255,255,255,0.5);color:#fff;" onclick="toggleLoginPanel()">🔐 Panel IGO</button>
+    <span id="userDisplayName" style="color:rgba(255,255,255,0.85);font-size:0.85rem;display:none;"></span>
   </div>
 </header>
 
-<!-- LANDING (public) -->
+<!-- LANDING -->
 <div id="landingView">
   <div class="container" style="text-align:center; padding:60px 20px;">
     <div style="font-size:4rem; margin-bottom:16px;">🚒</div>
     <h2 style="color:var(--navy); font-size:1.5rem; margin-bottom:10px;">System testowania IGO</h2>
-    <p style="color:var(--dark-gray); max-width:500px; margin:0 auto 32px;">Platforma do przeprowadzania inspekcji gotowości operacyjnej PSP. Zaloguj się aby zarządzać inspekcjami lub przejdź do trybu nauki.</p>
+    <p style="color:var(--dark-gray); max-width:500px; margin:0 auto 32px;">Platforma do przeprowadzania inspekcji gotowości operacyjnej PSP.</p>
     <div style="display:flex; gap:16px; justify-content:center; flex-wrap:wrap;">
       <a href="/nauka.html" class="btn btn-gold" style="font-size:1.1rem; padding:14px 28px;">📚 Przejdź do nauki</a>
       <button class="btn btn-danger" style="font-size:1.1rem; padding:14px 28px;" onclick="toggleLoginPanel()">🔐 Zaloguj (IGO)</button>
@@ -33,18 +34,23 @@
   </div>
 </div>
 
-<!-- LOGIN PANEL (inline, collapsible) -->
+<!-- LOGIN PANEL -->
 <div id="loginPanel" style="display:none;">
   <div class="login-wrap" style="min-height:auto; padding:20px;">
     <div class="login-card">
-      <h2>Panel administratora IGO</h2>
+      <h2>Panel IGO</h2>
       <p>Zaloguj się aby zarządzać sesjami inspekcji</p>
       <div id="loginError" class="alert alert-danger" style="display:none"></div>
       <div class="form-group">
+        <label for="usernameInput">Login</label>
+        <input type="text" id="usernameInput" class="form-control" placeholder="np. kowalski" autocomplete="username">
+      </div>
+      <div class="form-group">
         <label for="passwordInput">Hasło</label>
-        <input type="password" id="passwordInput" class="form-control" placeholder="Wprowadź hasło" autocomplete="current-password">
+        <input type="password" id="passwordInput" class="form-control" placeholder="Hasło" autocomplete="current-password">
       </div>
       <button class="btn btn-danger btn-block" id="loginBtn" onclick="doLogin()">🔐 Zaloguj się</button>
+      <p style="margin-top:12px;font-size:0.8rem;color:var(--dark-gray);">Domyślne konto: admin / admin123</p>
     </div>
   </div>
 </div>
@@ -54,16 +60,15 @@
   <div class="container-wide">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
       <div>
-        <h2 style="color:var(--navy); font-size:1.2rem;">Panel administracyjny IGO</h2>
-        <p style="font-size:0.85rem; color:var(--dark-gray);">Zarządzanie sesjami inspekcji</p>
+        <h2 style="color:var(--navy); font-size:1.2rem;">Panel IGO</h2>
+        <p style="font-size:0.85rem; color:var(--dark-gray);">Zalogowany: <strong id="userDisplayNamePanel"></strong></p>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-danger" onclick="openNewSessionModal()">➕ Nowa inspekcja</button>
+        <button id="userMgmtBtn" class="btn btn-primary btn-sm" onclick="openUserMgmt()" style="display:none;">👥 Użytkownicy</button>
         <button class="btn btn-outline btn-sm" onclick="logout()">🚪 Wyloguj</button>
       </div>
     </div>
-
-    <div id="adminError" class="alert alert-danger" style="display:none"></div>
 
     <div class="card">
       <div class="card-title">📋 Sesje inspekcji</div>
@@ -116,13 +121,48 @@
     </div>
     <div class="modal-body">
       <div id="sessionInfo" class="alert alert-info" style="margin-bottom:16px"></div>
-      <p style="font-size:0.9rem; color:var(--dark-gray); margin-bottom:16px;">
-        Wydrukuj lub pokaż poniższe kody QR uczestnikom inspekcji.
-      </p>
       <div class="qr-grid" id="qrGrid"></div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;">
         <button class="btn btn-primary" onclick="window.print()">🖨️ Drukuj kody QR</button>
         <button class="btn btn-outline" onclick="closeModal()">Zamknij</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- User Management Modal -->
+<div class="modal-overlay" id="userMgmtModal">
+  <div class="modal" style="max-width:700px;">
+    <div class="modal-header">
+      <h3>👥 Zarządzanie użytkownikami</h3>
+      <button class="modal-close" onclick="closeUserMgmt()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="usersList" style="margin-bottom:20px;"></div>
+      <div style="border-top:2px solid var(--mid-gray);padding-top:16px;">
+        <h4 style="color:var(--navy);margin-bottom:12px;">Dodaj użytkownika</h4>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+          <div class="form-group" style="margin:0;flex:1;min-width:120px;">
+            <label>Login</label>
+            <input type="text" id="newUsername" class="form-control" placeholder="login">
+          </div>
+          <div class="form-group" style="margin:0;flex:1;min-width:120px;">
+            <label>Hasło</label>
+            <input type="password" id="newPassword" class="form-control" placeholder="hasło">
+          </div>
+          <div class="form-group" style="margin:0;flex:1;min-width:140px;">
+            <label>Imię i nazwisko</label>
+            <input type="text" id="newDisplayName" class="form-control" placeholder="np. Jan Kowalski">
+          </div>
+          <div class="form-group" style="margin:0;min-width:100px;">
+            <label>Rola</label>
+            <select id="newRole" class="form-control">
+              <option value="user">Użytkownik</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <button class="btn btn-danger" onclick="addUser()" style="margin-bottom:0;">➕ Dodaj</button>
+        </div>
       </div>
     </div>
   </div>

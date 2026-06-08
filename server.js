@@ -2,12 +2,11 @@ const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
 const QRCode = require('qrcode');
-const { getDb, run, get, all } = require('./db');
+const { getDb, run, get, all, hashPassword } = require('./db');
 const questions = require('./questions.json');
 
 const app = express();
 const PORT = 3000;
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 
 const BASE_SECTIONS = {
   kierowcy:              ['I', 'II', 'III', 'IV'],
@@ -42,17 +41,83 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // --- Auth ---
-app.post('/api/login', (req, res) => {
-  const { password } = req.body;
-  if (password === ADMIN_PASSWORD) res.json({ ok: true });
-  else res.status(401).json({ ok: false, error: 'Nieprawidłowe hasło' });
+app.post('/api/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({ ok: false, error: 'Brak danych' });
+    const db = await getDb();
+    const user = get(db, 'SELECT * FROM users WHERE username = ? AND password_hash = ?',
+      [username, hashPassword(password)]);
+    if (!user) return res.status(401).json({ ok: false, error: 'Nieprawidłowy login lub hasło' });
+    res.json({ ok: true, userId: user.id, displayName: user.display_name, role: user.role });
+  } catch(e) {
+    res.status(500).json({ ok: false, error: 'Błąd serwera' });
+  }
 });
 
-function requireAuth(req, res, next) {
-  const auth = req.headers['x-admin-password'];
-  if (auth === ADMIN_PASSWORD) return next();
-  res.status(401).json({ error: 'Brak autoryzacji' });
+async function requireAuth(req, res, next) {
+  const username = req.headers['x-username'];
+  const pwdHash = req.headers['x-password-hash'];
+  if (!username || !pwdHash) return res.status(401).json({ error: 'Brak autoryzacji' });
+  try {
+    const db = await getDb();
+    const user = get(db, 'SELECT * FROM users WHERE username = ? AND password_hash = ?', [username, pwdHash]);
+    if (!user) return res.status(401).json({ error: 'Brak autoryzacji' });
+    req.user = user;
+    next();
+  } catch(e) {
+    res.status(500).json({ error: 'Błąd serwera' });
+  }
 }
+
+async function requireAdmin(req, res, next) {
+  await requireAuth(req, res, async () => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Brak uprawnień' });
+    next();
+  });
+}
+
+// --- Users (admin only) ---
+app.get('/api/users', requireAdmin, async (req, res) => {
+  try {
+    const db = await getDb();
+    const users = all(db, 'SELECT id, username, display_name, role, created_at FROM users ORDER BY id');
+    res.json(users);
+  } catch(e) { res.status(500).json({ error: 'Błąd serwera' }); }
+});
+
+app.post('/api/users', requireAdmin, async (req, res) => {
+  try {
+    const { username, password, display_name, role } = req.body;
+    if (!username || !password) return res.status(400).json({ error: 'Brak danych' });
+    const db = await getDb();
+    const existing = get(db, 'SELECT id FROM users WHERE username = ?', [username]);
+    if (existing) return res.status(400).json({ error: 'Login już istnieje' });
+    run(db, 'INSERT INTO users (username, password_hash, display_name, role) VALUES (?,?,?,?)',
+      [username, hashPassword(password), display_name || username, role || 'user']);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'Błąd serwera' }); }
+});
+
+app.delete('/api/users/:id', requireAdmin, async (req, res) => {
+  try {
+    const db = await getDb();
+    const user = get(db, 'SELECT * FROM users WHERE id = ?', [req.params.id]);
+    if (user && user.username === 'admin') return res.status(400).json({ error: 'Nie można usunąć głównego admina' });
+    run(db, 'DELETE FROM users WHERE id = ?', [req.params.id]);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'Błąd serwera' }); }
+});
+
+app.put('/api/users/:id/password', requireAdmin, async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password) return res.status(400).json({ error: 'Brak hasła' });
+    const db = await getDb();
+    run(db, 'UPDATE users SET password_hash = ? WHERE id = ?', [hashPassword(password), req.params.id]);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'Błąd serwera' }); }
+});
 
 // --- Sessions ---
 app.post('/api/sessions', requireAuth, async (req, res) => {
@@ -62,8 +127,8 @@ app.post('/api/sessions', requireAuth, async (req, res) => {
 
     const db = await getDb();
     const id = crypto.randomBytes(4).toString('hex');
-    run(db, 'INSERT INTO sessions (id, name, specializations) VALUES (?, ?, ?)',
-      [id, name, JSON.stringify(specializations)]);
+    run(db, 'INSERT INTO sessions (id, name, specializations, created_by) VALUES (?, ?, ?, ?)',
+      [id, name, JSON.stringify(specializations), req.user.id]);
 
     const host = req.headers.host;
     const protocol = req.headers['x-forwarded-proto'] || 'http';
@@ -77,7 +142,7 @@ app.post('/api/sessions', requireAuth, async (req, res) => {
     }
 
     res.json({ id, name, qrCodes });
-  } catch (e) {
+  } catch(e) {
     console.error(e);
     res.status(500).json({ error: 'Błąd serwera' });
   }
@@ -87,14 +152,27 @@ app.get('/api/sessions', requireAuth, async (req, res) => {
   try {
     const db = await getDb();
     const sessions = all(db, `
-      SELECT s.id, s.name, s.created_at, s.active, COUNT(t.id) as result_count
+      SELECT s.id, s.name, s.specializations, s.created_at, s.active,
+        COUNT(t.id) as result_count,
+        u.display_name as created_by_name
       FROM sessions s
       LEFT JOIN test_results t ON t.session_id = s.id
+      LEFT JOIN users u ON u.id = s.created_by
       GROUP BY s.id ORDER BY s.created_at DESC`);
     res.json(sessions);
-  } catch (e) {
-    res.status(500).json({ error: 'Błąd serwera' });
-  }
+  } catch(e) { res.status(500).json({ error: 'Błąd serwera' }); }
+});
+
+app.get('/api/sessions/:id', requireAuth, async (req, res) => {
+  try {
+    const db = await getDb();
+    const session = get(db, `
+      SELECT s.*, u.display_name as created_by_name
+      FROM sessions s LEFT JOIN users u ON u.id = s.created_by
+      WHERE s.id = ?`, [req.params.id]);
+    if (!session) return res.status(404).json({ error: 'Sesja nie istnieje' });
+    res.json(session);
+  } catch(e) { res.status(500).json({ error: 'Błąd serwera' }); }
 });
 
 app.delete('/api/sessions/:id', requireAuth, async (req, res) => {
@@ -102,9 +180,7 @@ app.delete('/api/sessions/:id', requireAuth, async (req, res) => {
     const db = await getDb();
     run(db, 'UPDATE sessions SET active = 0 WHERE id = ?', [req.params.id]);
     res.json({ ok: true });
-  } catch (e) {
-    res.status(500).json({ error: 'Błąd serwera' });
-  }
+  } catch(e) { res.status(500).json({ error: 'Błąd serwera' }); }
 });
 
 app.get('/api/sessions/:id/qr', requireAuth, async (req, res) => {
@@ -125,7 +201,7 @@ app.get('/api/sessions/:id/qr', requireAuth, async (req, res) => {
     }
 
     res.json({ id: session.id, name: session.name || session.id, qrCodes });
-  } catch (e) {
+  } catch(e) {
     console.error(e);
     res.status(500).json({ error: 'Błąd serwera' });
   }
@@ -153,7 +229,7 @@ app.get('/api/test/:sessionId/:category', async (req, res) => {
 
     res.json({ sessionId, category, categoryLabel: meta.label,
       count: meta.count, timeMinutes: meta.time, questions: selected });
-  } catch (e) {
+  } catch(e) {
     console.error(e);
     res.status(500).json({ error: 'Błąd serwera' });
   }
@@ -194,7 +270,7 @@ app.post('/api/test/:sessionId/:category/submit', async (req, res) => {
        JSON.stringify(questionDetails), JSON.stringify(answers), score, meta.count]);
 
     res.json({ ok: true, score, total: meta.count });
-  } catch (e) {
+  } catch(e) {
     console.error(e);
     res.status(500).json({ error: 'Błąd serwera' });
   }
@@ -210,22 +286,18 @@ app.get('/api/results/:sessionId', requireAuth, async (req, res) => {
     res.json(results.map(r => ({
       ...r, questions_json: JSON.parse(r.questions_json), answers_json: JSON.parse(r.answers_json)
     })));
-  } catch (e) {
-    res.status(500).json({ error: 'Błąd serwera' });
-  }
+  } catch(e) { res.status(500).json({ error: 'Błąd serwera' }); }
 });
 
 app.get('/api/results', requireAuth, async (req, res) => {
   try {
     const db = await getDb();
     const results = all(db, `
-      SELECT t.*, s.name as session_name, s.created_at as session_created
+      SELECT t.*, s.name as session_name
       FROM test_results t JOIN sessions s ON s.id = t.session_id
       ORDER BY t.completed_at DESC LIMIT 200`);
     res.json(results);
-  } catch (e) {
-    res.status(500).json({ error: 'Błąd serwera' });
-  }
+  } catch(e) { res.status(500).json({ error: 'Błąd serwera' }); }
 });
 
 // --- Learning API (public) ---
@@ -254,7 +326,7 @@ app.get('/api/nauka/questions', (req, res) => {
   res.json({ total: pool.length, from: start, questions: selected });
 });
 
-// --- Print test ---
+// --- Print ---
 app.get('/api/print/:sessionId/:category', requireAuth, async (req, res) => {
   try {
     const { sessionId, category } = req.params;
@@ -273,9 +345,7 @@ app.get('/api/print/:sessionId/:category', requireAuth, async (req, res) => {
 
     res.json({ session: { id: session.id, name: session.name || session.id },
       category, categoryLabel: meta.label, questions: selected });
-  } catch (e) {
-    res.status(500).json({ error: 'Błąd serwera' });
-  }
+  } catch(e) { res.status(500).json({ error: 'Błąd serwera' }); }
 });
 
 // --- SPA routes ---
@@ -283,8 +353,8 @@ app.get('/test/:sessionId/:category', (req, res) =>
   res.sendFile(path.join(__dirname, 'public', 'test.html')));
 app.get('/report/:sessionId', (req, res) =>
   res.sendFile(path.join(__dirname, 'public', 'report.html')));
-app.get('/nauka', (req, res) =>
-  res.sendFile(path.join(__dirname, 'public', 'nauka.html')));
+app.get('/session/:sessionId', (req, res) =>
+  res.sendFile(path.join(__dirname, 'public', 'session.html')));
 app.get('/print/:sessionId/:category', (req, res) =>
   res.sendFile(path.join(__dirname, 'public', 'print.html')));
 

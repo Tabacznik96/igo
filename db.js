@@ -1,11 +1,15 @@
-// SQLite via sql.js (pure JS, no native bindings needed)
 const initSqlJs = require('sql.js');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const DB_PATH = path.join(__dirname, 'data.db');
 
 let _db = null;
+
+function hashPassword(pwd) {
+  return crypto.createHash('sha256').update(pwd).digest('hex');
+}
 
 async function getDb() {
   if (_db) return _db;
@@ -20,10 +24,20 @@ async function getDb() {
   }
 
   _db.run(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      display_name TEXT,
+      role TEXT DEFAULT 'user',
+      created_at DATETIME DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY,
       name TEXT,
       specializations TEXT DEFAULT '[]',
+      created_by INTEGER,
       created_at DATETIME DEFAULT (datetime('now')),
       active INTEGER DEFAULT 1
     );
@@ -43,9 +57,17 @@ async function getDb() {
     );
   `);
 
-  // Migrate: add columns if they don't exist
+  // Migrations
   try { _db.run("ALTER TABLE sessions ADD COLUMN name TEXT"); } catch(e) {}
   try { _db.run("ALTER TABLE sessions ADD COLUMN specializations TEXT DEFAULT '[]'"); } catch(e) {}
+  try { _db.run("ALTER TABLE sessions ADD COLUMN created_by INTEGER"); } catch(e) {}
+
+  // Ensure default admin exists
+  const admin = get(_db, "SELECT id FROM users WHERE username = 'admin'", []);
+  if (!admin) {
+    _db.run("INSERT INTO users (username, password_hash, display_name, role) VALUES (?, ?, ?, ?)",
+      ['admin', hashPassword('admin123'), 'Administrator', 'admin']);
+  }
 
   save();
   return _db;
@@ -57,16 +79,14 @@ function save() {
   fs.writeFileSync(DB_PATH, Buffer.from(data));
 }
 
-// Helper: run a query (INSERT/UPDATE/DELETE) and save
 function run(db, sql, params) {
   db.run(sql, params);
   save();
 }
 
-// Helper: get one row
 function get(db, sql, params) {
   const stmt = db.prepare(sql);
-  stmt.bind(params);
+  stmt.bind(params || []);
   if (stmt.step()) {
     const row = stmt.getAsObject();
     stmt.free();
@@ -76,7 +96,6 @@ function get(db, sql, params) {
   return null;
 }
 
-// Helper: get all rows
 function all(db, sql, params) {
   const result = db.exec(sql, params);
   if (!result.length) return [];
@@ -88,4 +107,4 @@ function all(db, sql, params) {
   });
 }
 
-module.exports = { getDb, run, get, all, save };
+module.exports = { getDb, run, get, all, save, hashPassword };

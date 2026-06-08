@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Projekt – PSP IGO</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    .score-ok { color: var(--green); font-weight:700; }
+    .score-fail { color: var(--red); font-weight:700; }
+    .result-detail { background:#f8f9fa; border-radius:6px; padding:12px; margin-top:8px; font-size:0.85rem; display:none; }
+    .q-line { margin-bottom:6px; padding:6px 8px; border-radius:4px; }
+    .q-line.ok { background:#d4edda; }
+    .q-line.err { background:#f8d7da; }
+    .stats-row { display:flex; flex-wrap:wrap; gap:12px; margin-bottom:16px; }
+    @media print {
+      .no-print { display:none !important; }
+      .result-detail { display:block !important; }
+      .card { box-shadow:none; border:1px solid #ccc; page-break-inside:avoid; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="app-header no-print">
+  <div class="logo">🔥</div>
+  <div class="title-block">
+    <h1 id="pageTitle">Projekt IGO</h1>
+    <p>Państwowa Straż Pożarna</p>
+  </div>
+  <div style="margin-left:auto; display:flex; gap:8px;">
+    <button class="btn btn-gold btn-sm" onclick="window.print()">🖨️ Drukuj wszystko</button>
+    <a href="/" class="btn btn-outline btn-sm" style="border-color:rgba(255,255,255,0.5);color:#fff;">← Wróć</a>
+  </div>
+</div>
+
+<div class="container-wide">
+  <div id="loadingView" style="text-align:center;padding:60px;">
+    <div style="font-size:2rem;">⏳</div><p>Ładowanie...</p>
+  </div>
+
+  <div id="content" style="display:none;">
+
+    <!-- Session info -->
+    <div class="card no-print">
+      <div class="card-title">📋 Informacje o inspekcji</div>
+      <div class="stats-row" id="sessionMeta"></div>
+    </div>
+
+    <!-- Summary -->
+    <div class="card">
+      <div class="card-title">📊 Podsumowanie wyników</div>
+      <div id="summaryStats" class="stats-row"></div>
+      <div class="table-wrap">
+        <table id="summaryTable">
+          <thead><tr>
+            <th>#</th><th>Jednostka</th><th>Kategoria</th>
+            <th>Wynik</th><th>%</th><th>Czas</th>
+            <th class="no-print">Szczegóły</th>
+          </tr></thead>
+          <tbody id="summaryBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Per-result detail cards (visible in print) -->
+    <div id="detailCards"></div>
+
+  </div>
+</div>
+
+<script>
+const sessionId = location.pathname.split('/')[2];
+const params = new URLSearchParams(location.search);
+let creds = null;
+try { creds = JSON.parse(decodeURIComponent(params.get('creds') || '{}')); } catch(e) {}
+
+const u = creds && creds.u ? creds.u : (params.get('u') || '');
+const h = creds && creds.h ? creds.h : (params.get('h') || '');
+
+const CAT = { kierowcy:'Kierowcy', dowodcy:'Dowódcy', stanowiska_kierowania:'St. Kierowania' };
+
+function authH() { return { 'x-username': u, 'x-password-hash': h }; }
+
+async function load() {
+  try {
+    const [sessRes, resRes] = await Promise.all([
+      fetch(`/api/sessions/${sessionId}`, { headers: authH() }),
+      fetch(`/api/results/${sessionId}`, { headers: authH() })
+    ]);
+    if (sessRes.status === 401) { document.getElementById('loadingView').innerHTML = '<div class="alert alert-danger">Brak autoryzacji. <a href="/">Zaloguj się</a></div>'; return; }
+    const session = await sessRes.json();
+    const results = await resRes.json();
+    render(session, results);
+  } catch(e) {
+    document.getElementById('loadingView').innerHTML = '<div class="alert alert-danger">Błąd ładowania danych</div>';
+  }
+}
+
+function render(session, results) {
+  document.getElementById('loadingView').style.display = 'none';
+  document.getElementById('content').style.display = 'block';
+  document.getElementById('pageTitle').textContent = session.name || session.id;
+  document.title = (session.name || session.id) + ' – PSP IGO';
+
+  const specs = session.specializations ? JSON.parse(session.specializations) : [];
+  const specLabels = { chemical:'Chem.', sar:'PSR', water:'Wodne', heights:'Wysok.' };
+
+  document.getElementById('sessionMeta').innerHTML = `
+    <div class="info-box"><div class="val">${results.length}</div><div class="lbl">Uczestników</div></div>
+    <div class="info-box"><div class="val">${new Date(session.created_at).toLocaleDateString('pl-PL')}</div><div class="lbl">Data</div></div>
+    <div class="info-box"><div class="val">${session.active ? 'Aktywna' : 'Zakończona'}</div><div class="lbl">Status</div></div>
+    ${specs.length ? `<div class="info-box"><div class="val" style="font-size:0.9rem">${specs.map(s=>specLabels[s]||s).join(', ')}</div><div class="lbl">Specjalizacje</div></div>` : ''}
+    ${session.created_by_name ? `<div class="info-box"><div class="val" style="font-size:0.9rem">${esc(session.created_by_name)}</div><div class="lbl">Inspektor</div></div>` : ''}
+  `;
+
+  if (!results.length) {
+    document.getElementById('summaryBody').innerHTML = '<tr><td colspan="7" style="text-align:center;color:#999;">Brak wyników</td></tr>';
+    return;
+  }
+
+  const passed = results.filter(r => r.score/r.total >= 0.6).length;
+  const avg = Math.round(results.reduce((s,r) => s + r.score/r.total*100, 0) / results.length);
+  document.getElementById('summaryStats').innerHTML = `
+    <div class="info-box"><div class="val" style="color:var(--green)">${passed}</div><div class="lbl">Zdało (≥60%)</div></div>
+    <div class="info-box"><div class="val" style="color:var(--red)">${results.length-passed}</div><div class="lbl">Nie zdało</div></div>
+    <div class="info-box"><div class="val">${avg}%</div><div class="lbl">Średnia</div></div>
+  `;
+
+  let rows = '';
+  let detailHtml = '';
+
+  results.forEach((r, i) => {
+    const pct = Math.round(r.score/r.total*100);
+    const ok = pct >= 60;
+    const cat = CAT[r.category] || r.category;
+    const date = new Date(r.completed_at).toLocaleString('pl-PL');
+
+    rows += `<tr>
+      <td>${i+1}</td>
+      <td>${esc(r.unit)}</td>
+      <td>${cat}</td>
+      <td class="${ok ? 'score-ok' : 'score-fail'}">${r.score}/${r.total}</td>
+      <td><span class="badge ${ok ? 'badge-pass' : 'badge-fail'}">${pct}%</span></td>
+      <td style="font-size:0.82rem;">${date}</td>
+      <td class="no-print"><button class="btn btn-outline btn-sm" onclick="toggleDetail(${i})">🔍 Odpowiedzi</button></td>
+    </tr>
+    <tr class="no-print"><td colspan="7" style="padding:0;"><div id="detail-${i}" class="result-detail"></div></td></tr>`;
+
+    // Detail card for print
+    const qs = r.questions_json || [];
+    let qHtml = qs.map(q => `
+      <div class="q-line ${q.isCorrect ? 'ok' : 'err'}">
+        ${q.isCorrect ? '✅' : '❌'} <strong>${esc(q.question)}</strong><br>
+        <span style="font-size:0.82rem;">Wybrano: ${q.selectedLetter || '—'} | Poprawna: ${q.correctLetter || '?'}</span>
+      </div>`).join('');
+
+    detailHtml += `
+      <div class="card" style="page-break-before:always;">
+        <div class="card-title">${i+1}. ${esc(r.unit)} – ${cat} – <span class="${ok?'score-ok':'score-fail'}">${pct}%</span></div>
+        <p style="font-size:0.85rem;color:var(--dark-gray);margin-bottom:12px;">${date} | ${r.score}/${r.total} poprawnych</p>
+        ${qHtml}
+      </div>`;
+
+    // Store for toggle
+    window['_detail_'+i] = qHtml;
+  });
+
+  document.getElementById('summaryBody').innerHTML = rows;
+  document.getElementById('detailCards').innerHTML = detailHtml;
+}
+
+function toggleDetail(i) {
+  const el = document.getElementById('detail-'+i);
+  if (el.style.display === 'block') { el.style.display = 'none'; return; }
+  el.innerHTML = window['_detail_'+i] || '';
+  el.style.display = 'block';
+}
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+load();
+</script>
+</body>
+</html>

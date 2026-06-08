@@ -1,4 +1,10 @@
-let adminPassword = '';
+let currentUser = null; // { userId, username, displayName, role, passwordHash }
+
+function sha256(str) {
+  // Use SubtleCrypto for hashing in browser
+  return crypto.subtle.digest('SHA-256', new TextEncoder().encode(str))
+    .then(buf => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join(''));
+}
 
 // --- Landing / Login ---
 function toggleLoginPanel() {
@@ -7,28 +13,31 @@ function toggleLoginPanel() {
   const visible = panel.style.display !== 'none';
   panel.style.display = visible ? 'none' : 'block';
   landing.style.display = visible ? 'block' : 'none';
-  if (!visible) setTimeout(() => document.getElementById('passwordInput').focus(), 50);
+  if (!visible) setTimeout(() => document.getElementById('usernameInput').focus(), 50);
 }
 
-function doLogin() {
-  const pwd = document.getElementById('passwordInput').value;
-  if (!pwd) return;
+async function doLogin() {
+  const username = document.getElementById('usernameInput').value.trim();
+  const password = document.getElementById('passwordInput').value;
+  if (!username || !password) return;
+
   document.getElementById('loginBtn').disabled = true;
+  const pwdHash = await sha256(password);
 
   fetch('/api/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password: pwd })
+    body: JSON.stringify({ username, password })
   })
     .then(r => r.json())
     .then(data => {
       if (data.ok) {
-        adminPassword = pwd;
-        sessionStorage.setItem('adminPwd', pwd);
+        currentUser = { userId: data.userId, username, displayName: data.displayName, role: data.role, passwordHash: pwdHash };
+        sessionStorage.setItem('currentUser', JSON.stringify({ ...currentUser, password }));
         showAdminPanel();
         loadAll();
       } else {
-        showLoginError(data.error || 'Nieprawidłowe hasło');
+        showLoginError(data.error || 'Nieprawidłowy login lub hasło');
       }
     })
     .catch(() => showLoginError('Błąd połączenia z serwerem'))
@@ -46,20 +55,30 @@ function showAdminPanel() {
   document.getElementById('loginPanel').style.display = 'none';
   document.getElementById('adminPanel').style.display = 'block';
   document.getElementById('loginToggleBtn').style.display = 'none';
+  document.getElementById('userDisplayName').textContent = currentUser.displayName || currentUser.username;
+  document.getElementById('userDisplayName').style.display = 'inline';
+  document.getElementById('userDisplayNamePanel').textContent = currentUser.displayName || currentUser.username;
+  if (currentUser.role === 'admin') {
+    document.getElementById('userMgmtBtn').style.display = 'inline-flex';
+  }
 }
 
 function logout() {
-  adminPassword = '';
-  sessionStorage.removeItem('adminPwd');
+  currentUser = null;
+  sessionStorage.removeItem('currentUser');
   document.getElementById('adminPanel').style.display = 'none';
   document.getElementById('landingView').style.display = 'block';
-  document.getElementById('loginPanel').style.display = 'none';
   document.getElementById('loginToggleBtn').style.display = 'inline-flex';
+  document.getElementById('usernameInput').value = '';
   document.getElementById('passwordInput').value = '';
 }
 
 function authHeaders() {
-  return { 'Content-Type': 'application/json', 'x-admin-password': adminPassword };
+  return {
+    'Content-Type': 'application/json',
+    'x-username': currentUser.username,
+    'x-password-hash': currentUser.passwordHash
+  };
 }
 
 function loadAll() {
@@ -86,7 +105,7 @@ function renderSessions(sessions) {
   }
 
   let html = '<div class="table-wrap"><table><thead><tr>' +
-    '<th>Nazwa inspekcji</th><th>Data</th><th>Status</th><th>Wyniki</th><th>Akcje</th>' +
+    '<th>Nazwa inspekcji</th><th>Utworzył</th><th>Data</th><th>Status</th><th>Wyniki</th><th>Akcje</th>' +
     '</tr></thead><tbody>';
 
   for (const s of sessions) {
@@ -95,15 +114,17 @@ function renderSessions(sessions) {
       ? '<span class="badge badge-pass">Aktywna</span>'
       : '<span class="badge badge-fail">Zakończona</span>';
     const name = s.name ? escHtml(s.name) : `<code style="font-size:0.8rem">${s.id}</code>`;
+    const creator = s.created_by_name ? escHtml(s.created_by_name) : '—';
+    const creds = encodeURIComponent(JSON.stringify({ u: currentUser.username, h: currentUser.passwordHash }));
 
     html += `<tr>
-      <td><strong>${name}</strong></td>
+      <td><a href="/session/${s.id}?creds=${creds}" style="color:var(--navy);font-weight:700;text-decoration:none;">${name}</a></td>
+      <td style="font-size:0.85rem;">${creator}</td>
       <td style="font-size:0.85rem;white-space:nowrap;">${date}</td>
       <td>${status}</td>
       <td>${s.result_count} wynik(ów)</td>
       <td style="white-space:nowrap;">
         <button class="btn btn-primary btn-sm" onclick="showSessionQr('${s.id}')">📱 QR</button>
-        <a href="/report/${s.id}?pwd=${encodeURIComponent(adminPassword)}" target="_blank" class="btn btn-gold btn-sm">📄 Raport</a>
         ${s.active ? `<button class="btn btn-outline btn-sm" onclick="closeSession('${s.id}')">🔒 Zamknij</button>` : ''}
       </td>
     </tr>`;
@@ -227,7 +248,7 @@ function showQrModal(data) {
   document.getElementById('sessionInfo').textContent = name;
   document.getElementById('qrModalTitle').textContent = `📱 ${name}`;
 
-  const catLabels = {
+  const catMeta = {
     kierowcy:              { label: 'Kierowcy',              desc: '15 pytań, 15 min', color: '#0a1628' },
     dowodcy:               { label: 'Dowódcy',               desc: '15 pytań, 15 min', color: '#c0392b' },
     stanowiska_kierowania: { label: 'Stanowiska Kierowania', desc: '10 pytań, 10 min', color: '#27ae60' }
@@ -235,8 +256,8 @@ function showQrModal(data) {
 
   let html = '';
   for (const [cat, qr] of Object.entries(data.qrCodes)) {
-    const info = catLabels[cat] || { label: qr.label, desc: '', color: '#333' };
-    const printUrl = `/print/${data.id}/${cat}?pwd=${encodeURIComponent(adminPassword)}`;
+    const info = catMeta[cat] || { label: qr.label, desc: '', color: '#333' };
+    const printUrl = `/print/${data.id}/${cat}?u=${encodeURIComponent(currentUser.username)}&h=${encodeURIComponent(currentUser.passwordHash)}`;
     html += `<div class="qr-item">
       <h4 style="color:${info.color}">${info.label}</h4>
       <p style="font-size:0.75rem;color:#666;margin-bottom:8px;">${info.desc}</p>
@@ -260,35 +281,113 @@ function closeSession(id) {
     .catch(() => alert('Błąd podczas zamykania sesji'));
 }
 
+// --- User Management ---
+function openUserMgmt() {
+  document.getElementById('userMgmtModal').classList.add('active');
+  loadUsers();
+}
+
+function closeUserMgmt() {
+  document.getElementById('userMgmtModal').classList.remove('active');
+}
+
+function loadUsers() {
+  fetch('/api/users', { headers: authHeaders() })
+    .then(r => r.json())
+    .then(renderUsers);
+}
+
+function renderUsers(users) {
+  let html = '<table><thead><tr><th>Login</th><th>Imię/Nazwa</th><th>Rola</th><th>Akcje</th></tr></thead><tbody>';
+  for (const u of users) {
+    html += `<tr>
+      <td>${escHtml(u.username)}</td>
+      <td>${escHtml(u.display_name || '')}</td>
+      <td><span class="badge ${u.role === 'admin' ? 'badge-pass' : 'badge-info'}">${u.role}</span></td>
+      <td>
+        ${u.username !== 'admin' ? `<button class="btn btn-outline btn-sm" onclick="deleteUser(${u.id})">🗑️</button>` : ''}
+        <button class="btn btn-outline btn-sm" onclick="resetPassword(${u.id})">🔑 Hasło</button>
+      </td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  document.getElementById('usersList').innerHTML = html;
+}
+
+function addUser() {
+  const username = document.getElementById('newUsername').value.trim();
+  const password = document.getElementById('newPassword').value;
+  const display_name = document.getElementById('newDisplayName').value.trim();
+  const role = document.getElementById('newRole').value;
+  if (!username || !password) { alert('Wypełnij login i hasło'); return; }
+
+  fetch('/api/users', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ username, password, display_name, role })
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { alert(data.error); return; }
+      document.getElementById('newUsername').value = '';
+      document.getElementById('newPassword').value = '';
+      document.getElementById('newDisplayName').value = '';
+      loadUsers();
+    });
+}
+
+function deleteUser(id) {
+  if (!confirm('Usunąć użytkownika?')) return;
+  fetch(`/api/users/${id}`, { method: 'DELETE', headers: authHeaders() })
+    .then(() => loadUsers());
+}
+
+function resetPassword(id) {
+  const pwd = prompt('Nowe hasło:');
+  if (!pwd) return;
+  fetch(`/api/users/${id}/password`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify({ password: pwd })
+  }).then(r => r.json()).then(d => { if (d.ok) alert('Hasło zmienione'); });
+}
+
 function escHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // --- Init ---
 window.addEventListener('DOMContentLoaded', () => {
-  const saved = sessionStorage.getItem('adminPwd');
+  const saved = sessionStorage.getItem('currentUser');
   if (saved) {
-    adminPassword = saved;
-    fetch('/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: saved })
-    }).then(r => r.json()).then(data => {
-      if (data.ok) { showAdminPanel(); loadAll(); }
-      else sessionStorage.removeItem('adminPwd');
-    }).catch(() => {});
+    try {
+      const data = JSON.parse(saved);
+      // Re-login to verify
+      fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: data.username, password: data.password })
+      }).then(r => r.json()).then(async res => {
+        if (res.ok) {
+          currentUser = { ...data, passwordHash: await sha256(data.password) };
+          showAdminPanel();
+          loadAll();
+        } else {
+          sessionStorage.removeItem('currentUser');
+        }
+      }).catch(() => {});
+    } catch(e) {}
   }
 
   document.getElementById('passwordInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') doLogin();
   });
-
-  document.getElementById('qrModal').addEventListener('click', e => {
-    if (e.target === document.getElementById('qrModal')) closeModal();
+  document.getElementById('usernameInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('passwordInput').focus();
   });
-  document.getElementById('newSessionModal').addEventListener('click', e => {
-    if (e.target === document.getElementById('newSessionModal')) closeNewSessionModal();
+
+  ['qrModal','newSessionModal','userMgmtModal'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('click', e => { if (e.target === el) el.classList.remove('active'); });
   });
 });
