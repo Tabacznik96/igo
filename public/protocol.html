@@ -145,12 +145,40 @@
     .unit-type-card .utc-name { font-size:0.75rem; color:var(--dark-gray); margin-top:2px; }
 
     /* ── mobile ── */
-    @media (max-width:600px) {
-      .sec-nav { display:none; }
-      .sec-nav.open { display:flex; position:fixed; top:0; left:0; right:0; bottom:0; z-index:200; padding:60px 16px 16px; }
-      .sec-toggle { display:flex !important; }
+    @media (max-width:700px) {
+      .proto-layout { flex-direction: column; }
+      .sec-nav {
+        width: 100% !important;
+        min-width: unset !important;
+        flex-direction: row !important;
+        overflow-x: auto;
+        overflow-y: hidden;
+        max-height: unset !important;
+        position: static !important;
+        top: unset !important;
+        border-right: none !important;
+        border-bottom: 2px solid var(--mid-gray);
+        padding: 6px 8px !important;
+        gap: 4px !important;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+      }
+      .sec-nav::-webkit-scrollbar { display: none; }
+      .sec-nav-btn {
+        white-space: nowrap;
+        flex-shrink: 0;
+        font-size: 0.78rem !important;
+        padding: 6px 10px !important;
+      }
+      .sec-content-wrap { padding: 12px 10px; }
+      .proto-header h1 { font-size: 0.88rem; }
+      .sec-toggle { display: none !important; }
+      .score-footer { padding: 8px 12px; gap: 8px; }
+      .score-footer .total-label { font-size: 0.95rem; }
+      .chk-controls { flex-wrap: wrap; gap: 4px; }
+      .radio-opt { font-size: 0.78rem; padding: 4px 8px; }
+      .stopwatch-display { font-size: 2.2rem; }
     }
-    .sec-toggle { display:none; }
 
     @media print { .proto-header,.score-footer,.sec-nav,.sec-toggle { display:none !important; } }
   </style>
@@ -241,10 +269,10 @@
 
 </div>
 
-<script src="/protocol.js?v=7"></script>
+<script src="/protocol.js?v=8"></script>
 <script>
 function toggleSecNav() {
-  document.getElementById('sectionNav').classList.toggle('open');
+  // no-op on mobile — nav is now a horizontal strip
 }
 function selectUnitType(type) {
   document.getElementById('unitTypeSelect').value = type;

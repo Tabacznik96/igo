@@ -463,6 +463,14 @@ function switchSection(id) {
   currentSectionId = id;
   renderSectionNav();
   renderSection(id);
+  // On mobile scroll content into view
+  const content = document.getElementById('sectionContent');
+  if (content) content.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Also scroll active nav button into view in horizontal strip
+  setTimeout(() => {
+    const activeBtn = document.querySelector('.sec-nav-btn.active');
+    if (activeBtn) activeBtn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, 50);
 }
 
 // ── META (protocol-level data) ──────────────────────────────────────────────
