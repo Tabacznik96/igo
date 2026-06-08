@@ -279,20 +279,26 @@ async function startProtocol() {
   unitType = document.getElementById('unitTypeSelect').value;
   if (!unitName) { alert('Podaj nazwę jednostki'); return; }
 
-  // create protocol in DB
-  const r = await fetch(`/api/protocols/session/${sessionId}`, {
-    method: 'POST',
-    headers: authH_(),
-    body: JSON.stringify({ unit: unitName, unit_type: unitType })
-  });
-  const d = await r.json();
-  if (!d.ok) { alert('Błąd tworzenia protokołu'); return; }
-  protocolId = d.id;
+  const btn = document.querySelector('[onclick="startProtocol()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Tworzenie…'; }
 
-  // init section data
-  initSectionData();
-  await loadSessionResults();
-  renderMainScreen();
+  try {
+    const r = await fetch(`/api/protocols/session/${sessionId}`, {
+      method: 'POST',
+      headers: authH_(),
+      body: JSON.stringify({ unit: unitName, unit_type: unitType })
+    });
+    const d = await r.json();
+    if (!d.ok) { alert('Błąd: ' + (d.error || 'Nie udało się utworzyć protokołu')); return; }
+    protocolId = d.id;
+    initSectionData();
+    await loadSessionResults();
+    renderMainScreen();
+  } catch(e) {
+    alert('Błąd połączenia z serwerem: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '▶ Rozpocznij protokół'; }
+  }
 }
 
 async function loadExistingProtocol() {
