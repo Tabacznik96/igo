@@ -80,11 +80,41 @@
   </div>
 </div>
 
+<!-- New Session Modal -->
+<div class="modal-overlay" id="newSessionModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>➕ Nowa inspekcja</h3>
+      <button class="modal-close" onclick="closeNewSessionModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label for="sessionName">Nazwa inspekcji</label>
+        <input type="text" id="sessionName" class="form-control" placeholder="np. IGO Kartuzy 25.06.2026">
+      </div>
+      <div class="form-group">
+        <label>Specjalizacje jednostki</label>
+        <div class="spec-checkboxes">
+          <label class="spec-option"><input type="checkbox" name="spec" value="chemical"> Ratownictwo chemiczne i techniczne (spec.)</label>
+          <label class="spec-option"><input type="checkbox" name="spec" value="sar"> Działania poszukiwawczo-ratownicze (spec.)</label>
+          <label class="spec-option"><input type="checkbox" name="spec" value="water"> Ratownictwo wodno-nurkowe (spec.)</label>
+          <label class="spec-option"><input type="checkbox" name="spec" value="heights"> Ratownictwo wysokościowe (spec.)</label>
+        </div>
+      </div>
+      <div id="newSessionError" class="alert alert-danger" style="display:none"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn btn-danger" onclick="submitNewSession()">✅ Generuj kody QR</button>
+        <button class="btn btn-outline" onclick="closeNewSessionModal()">Anuluj</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- QR Modal -->
 <div class="modal-overlay" id="qrModal">
   <div class="modal">
     <div class="modal-header">
-      <h3>📱 Kody QR – Nowa inspekcja</h3>
+      <h3>📱 Kody QR – Inspekcja</h3>
       <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
     <div class="modal-body">

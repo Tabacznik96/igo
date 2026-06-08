@@ -68,7 +68,7 @@ function renderSessions(sessions) {
   }
 
   let html = '<div class="table-wrap"><table><thead><tr>' +
-    '<th>ID Sesji</th><th>Data utworzenia</th><th>Status</th><th>Wyniki</th><th>Akcje</th>' +
+    '<th>Nazwa inspekcji</th><th>Data utworzenia</th><th>Status</th><th>Wyniki</th><th>Akcje</th>' +
     '</tr></thead><tbody>';
 
   for (const s of sessions) {
@@ -76,9 +76,10 @@ function renderSessions(sessions) {
     const status = s.active
       ? '<span class="badge badge-pass">Aktywna</span>'
       : '<span class="badge badge-fail">Zakończona</span>';
+    const name = s.name ? escHtml(s.name) : `<code>${s.id}</code>`;
 
     html += `<tr>
-      <td><code>${s.id}</code></td>
+      <td>${name}</td>
       <td>${date}</td>
       <td>${status}</td>
       <td>${s.result_count} wynik(ów)</td>
@@ -142,30 +143,56 @@ function renderResults(results) {
 }
 
 function generateSession() {
-  const btn = document.querySelector('[onclick="generateSession()"]');
+  document.getElementById('sessionName').value = '';
+  document.querySelectorAll('input[name="spec"]').forEach(cb => cb.checked = false);
+  document.getElementById('newSessionError').style.display = 'none';
+  document.getElementById('newSessionModal').classList.add('active');
+}
+
+function closeNewSessionModal() {
+  document.getElementById('newSessionModal').classList.remove('active');
+}
+
+function submitNewSession() {
+  const name = document.getElementById('sessionName').value.trim();
+  if (!name) {
+    const el = document.getElementById('newSessionError');
+    el.textContent = 'Podaj nazwę inspekcji.';
+    el.style.display = 'block';
+    return;
+  }
+
+  const specializations = [...document.querySelectorAll('input[name="spec"]:checked')].map(cb => cb.value);
+
+  const btn = document.querySelector('[onclick="submitNewSession()"]');
   btn.disabled = true;
   btn.textContent = 'Generowanie...';
 
-  fetch('/api/sessions', { method: 'POST', headers: authHeaders() })
+  fetch('/api/sessions', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ name, specializations })
+  })
     .then(r => r.json())
     .then(data => {
+      closeNewSessionModal();
       showQrModal(data);
       loadAll();
     })
     .catch(() => {
-      const el = document.getElementById('adminError');
+      const el = document.getElementById('newSessionError');
       el.textContent = 'Błąd podczas generowania sesji';
       el.style.display = 'block';
     })
     .finally(() => {
       btn.disabled = false;
-      btn.innerHTML = '➕ Generuj nową inspekcję';
+      btn.textContent = '✅ Generuj kody QR';
     });
 }
 
 function showQrModal(data) {
   const grid = document.getElementById('qrGrid');
-  document.getElementById('sessionInfo').textContent = `ID sesji: ${data.id}`;
+  document.getElementById('sessionInfo').textContent = data.name ? `${data.name} (ID: ${data.id})` : `ID sesji: ${data.id}`;
 
   const catLabels = {
     kierowcy: { label: 'Kierowcy', desc: '15 pytań, 15 min', color: '#0a1628' },
@@ -220,8 +247,10 @@ window.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') doLogin();
   });
 
-  // Close modal on overlay click
   document.getElementById('qrModal').addEventListener('click', e => {
     if (e.target === document.getElementById('qrModal')) closeModal();
+  });
+  document.getElementById('newSessionModal').addEventListener('click', e => {
+    if (e.target === document.getElementById('newSessionModal')) closeNewSessionModal();
   });
 });
