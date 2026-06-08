@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PSP – Panel Administratora</title>
+  <title>PSP – Inspekcja Gotowości Operacyjnej</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -12,71 +12,68 @@
   <div class="logo">🔥</div>
   <div class="title-block">
     <h1>Inspekcja Gotowości Operacyjnej</h1>
-    <p>Państwowa Straż Pożarna – Panel Administratora</p>
+    <p>Państwowa Straż Pożarna</p>
+  </div>
+  <div style="margin-left:auto; display:flex; gap:8px;">
+    <a href="/nauka" class="btn btn-gold btn-sm">📚 Nauka</a>
+    <button id="loginToggleBtn" class="btn btn-outline btn-sm" style="border-color:rgba(255,255,255,0.5);color:#fff;" onclick="toggleLoginPanel()">🔐 Panel IGO</button>
   </div>
 </header>
 
-<!-- LOGIN SCREEN -->
-<div id="loginScreen" class="login-wrap">
-  <div class="login-card">
-    <h2>Logowanie</h2>
-    <p>Panel administratora systemu inspekcji PSP</p>
-    <div id="loginError" class="alert alert-danger" style="display:none"></div>
-    <div class="form-group">
-      <label for="passwordInput">Hasło administratora</label>
-      <input type="password" id="passwordInput" class="form-control" placeholder="Wprowadź hasło" autocomplete="current-password">
+<!-- LANDING (public) -->
+<div id="landingView">
+  <div class="container" style="text-align:center; padding:60px 20px;">
+    <div style="font-size:4rem; margin-bottom:16px;">🚒</div>
+    <h2 style="color:var(--navy); font-size:1.5rem; margin-bottom:10px;">System testowania IGO</h2>
+    <p style="color:var(--dark-gray); max-width:500px; margin:0 auto 32px;">Platforma do przeprowadzania inspekcji gotowości operacyjnej PSP. Zaloguj się aby zarządzać inspekcjami lub przejdź do trybu nauki.</p>
+    <div style="display:flex; gap:16px; justify-content:center; flex-wrap:wrap;">
+      <a href="/nauka" class="btn btn-gold" style="font-size:1.1rem; padding:14px 28px;">📚 Przejdź do nauki</a>
+      <button class="btn btn-danger" style="font-size:1.1rem; padding:14px 28px;" onclick="toggleLoginPanel()">🔐 Zaloguj (IGO)</button>
     </div>
-    <button class="btn btn-danger btn-block" id="loginBtn" onclick="doLogin()">
-      🔐 Zaloguj się
-    </button>
+  </div>
+</div>
+
+<!-- LOGIN PANEL (inline, collapsible) -->
+<div id="loginPanel" style="display:none;">
+  <div class="login-wrap" style="min-height:auto; padding:20px;">
+    <div class="login-card">
+      <h2>Panel administratora IGO</h2>
+      <p>Zaloguj się aby zarządzać sesjami inspekcji</p>
+      <div id="loginError" class="alert alert-danger" style="display:none"></div>
+      <div class="form-group">
+        <label for="passwordInput">Hasło</label>
+        <input type="password" id="passwordInput" class="form-control" placeholder="Wprowadź hasło" autocomplete="current-password">
+      </div>
+      <button class="btn btn-danger btn-block" id="loginBtn" onclick="doLogin()">🔐 Zaloguj się</button>
+    </div>
   </div>
 </div>
 
 <!-- ADMIN PANEL -->
 <div id="adminPanel" style="display:none">
   <div class="container-wide">
-
-    <!-- Top bar -->
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
       <div>
-        <h2 style="color:var(--navy); font-size:1.2rem;">Panel administracyjny</h2>
+        <h2 style="color:var(--navy); font-size:1.2rem;">Panel administracyjny IGO</h2>
         <p style="font-size:0.85rem; color:var(--dark-gray);">Zarządzanie sesjami inspekcji</p>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn btn-danger" onclick="generateSession()">
-          ➕ Generuj nową inspekcję
-        </button>
-        <button class="btn btn-outline btn-sm" onclick="logout()">
-          🚪 Wyloguj
-        </button>
+        <button class="btn btn-danger" onclick="openNewSessionModal()">➕ Nowa inspekcja</button>
+        <button class="btn btn-outline btn-sm" onclick="logout()">🚪 Wyloguj</button>
       </div>
     </div>
 
     <div id="adminError" class="alert alert-danger" style="display:none"></div>
-    <div id="adminInfo" class="alert alert-success" style="display:none"></div>
 
-    <!-- Sessions -->
     <div class="card">
       <div class="card-title">📋 Sesje inspekcji</div>
-      <div id="sessionsList">
-        <div class="empty-state">
-          <div class="icon">📂</div>
-          <div>Ładowanie sesji...</div>
-        </div>
-      </div>
+      <div id="sessionsList"><div class="empty-state"><div class="icon">📂</div><div>Ładowanie...</div></div></div>
     </div>
 
-    <!-- All Results -->
     <div class="card">
-      <div class="card-title">📊 Wyniki testów</div>
-      <div id="resultsList">
-        <div class="empty-state">
-          <div class="icon">📝</div>
-          <div>Ładowanie wyników...</div>
-        </div>
-      </div>
+      <div class="card-title">📊 Ostatnie wyniki</div>
+      <div id="resultsList"><div class="empty-state"><div class="icon">📝</div><div>Ładowanie...</div></div></div>
     </div>
-
   </div>
 </div>
 
@@ -114,13 +111,13 @@
 <div class="modal-overlay" id="qrModal">
   <div class="modal">
     <div class="modal-header">
-      <h3 id="qrModalTitle">📱 Kody QR – Inspekcja</h3>
+      <h3 id="qrModalTitle">📱 Kody QR</h3>
       <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
     <div class="modal-body">
       <div id="sessionInfo" class="alert alert-info" style="margin-bottom:16px"></div>
       <p style="font-size:0.9rem; color:var(--dark-gray); margin-bottom:16px;">
-        Wydrukuj lub pokaż poniższe kody QR uczestnikom inspekcji. Każdy kod przeznaczony jest dla innej kategorii stanowisk.
+        Wydrukuj lub pokaż poniższe kody QR uczestnikom inspekcji.
       </p>
       <div class="qr-grid" id="qrGrid"></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;">

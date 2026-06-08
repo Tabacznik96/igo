@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test do druku – PSP IGO</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; font-size: 12pt; background: #fff; color: #000; padding: 20px; }
+    .print-bar { background: #0a1628; color: #fff; padding: 10px 16px; display: flex; gap: 10px; align-items: center; margin: -20px -20px 20px; }
+    .print-bar button { padding: 8px 16px; background: #f39c12; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
+    .print-bar .close-btn { background: transparent; border: 2px solid rgba(255,255,255,0.5); }
+    .header { border: 2px solid #000; padding: 16px; margin-bottom: 20px; text-align: center; }
+    .header h1 { font-size: 14pt; letter-spacing: 1px; }
+    .header .meta { font-size: 10pt; margin-top: 6px; color: #333; }
+    .question { margin-bottom: 18px; border-left: 3px solid #ccc; padding-left: 10px; page-break-inside: avoid; }
+    .q-num { font-size: 9pt; color: #666; font-weight: bold; }
+    .q-section { font-size: 9pt; color: #c0392b; font-style: italic; }
+    .q-text { font-size: 11pt; font-weight: 600; margin: 4px 0 8px; line-height: 1.4; }
+    .answer { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 5px; }
+    .answer-box { width: 16px; height: 16px; border: 1.5px solid #333; border-radius: 50%; flex-shrink: 0; margin-top: 2px; }
+    .answer-letter { font-weight: 700; font-size: 10pt; min-width: 16px; }
+    .answer-text { font-size: 10pt; line-height: 1.4; }
+    .answer-area { margin-top: 8px; border-bottom: 1px solid #ccc; height: 20px; }
+    @media print {
+      .print-bar { display: none !important; }
+      body { padding: 10px; }
+    }
+  </style>
+</head>
+<body>
+<div class="print-bar no-print">
+  <button onclick="window.print()">🖨️ Drukuj</button>
+  <span style="flex:1; font-size:0.9rem;" id="printTitle">Test do druku</span>
+  <button class="close-btn" onclick="window.close()">✕ Zamknij</button>
+</div>
+
+<div id="content">
+  <div style="text-align:center; padding:40px;">Ładowanie...</div>
+</div>
+
+<script>
+const parts = location.pathname.split('/');
+const sessionId = parts[2];
+const category = parts[3];
+const pwd = new URLSearchParams(location.search).get('pwd') || sessionStorage.getItem('adminPwd') || '';
+
+const CAT_LABELS = { kierowcy: 'Kierowcy', dowodcy: 'Dowódcy', stanowiska_kierowania: 'Stanowiska Kierowania' };
+
+fetch(`/api/print/${sessionId}/${category}`, { headers: { 'x-admin-password': pwd } })
+  .then(r => r.json())
+  .then(data => {
+    if (data.error) { document.getElementById('content').innerHTML = `<p style="color:red">${data.error}</p>`; return; }
+    const title = `${data.session.name} – ${CAT_LABELS[data.category] || data.category}`;
+    document.title = title;
+    document.getElementById('printTitle').textContent = title;
+
+    let html = `<div class="header">
+      <h1>INSPEKCJA GOTOWOŚCI OPERACYJNEJ</h1>
+      <div class="meta">${escHtml(data.session.name)} &nbsp;|&nbsp; Kategoria: ${CAT_LABELS[data.category] || data.category}</div>
+      <div class="meta" style="margin-top:4px;">Imię i nazwisko: _____________________________________ &nbsp; Jednostka: _____________________</div>
+    </div>`;
+
+    data.questions.forEach((q, i) => {
+      html += `<div class="question">
+        <div class="q-num">Pytanie ${i+1} z ${data.questions.length}</div>
+        <div class="q-section">${esc(q.section)}</div>
+        <div class="q-text">${esc(q.question)}</div>`;
+      q.answers.forEach(a => {
+        html += `<div class="answer">
+          <div class="answer-box"></div>
+          <span class="answer-letter">${a.letter}.</span>
+          <span class="answer-text">${esc(a.text)}</span>
+        </div>`;
+      });
+      html += `</div>`;
+    });
+
+    document.getElementById('content').innerHTML = html;
+  })
+  .catch(() => { document.getElementById('content').innerHTML = '<p style="color:red">Błąd ładowania testu</p>'; });
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escHtml(s) { return esc(s); }
+</script>
+</body>
+</html>

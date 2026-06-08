@@ -1,5 +1,14 @@
-// PSP Admin Panel JS
 let adminPassword = '';
+
+// --- Landing / Login ---
+function toggleLoginPanel() {
+  const panel = document.getElementById('loginPanel');
+  const landing = document.getElementById('landingView');
+  const visible = panel.style.display !== 'none';
+  panel.style.display = visible ? 'none' : 'block';
+  landing.style.display = visible ? 'block' : 'none';
+  if (!visible) setTimeout(() => document.getElementById('passwordInput').focus(), 50);
+}
 
 function doLogin() {
   const pwd = document.getElementById('passwordInput').value;
@@ -16,8 +25,7 @@ function doLogin() {
       if (data.ok) {
         adminPassword = pwd;
         sessionStorage.setItem('adminPwd', pwd);
-        document.getElementById('loginScreen').style.display = 'none';
-        document.getElementById('adminPanel').style.display = 'block';
+        showAdminPanel();
         loadAll();
       } else {
         showLoginError(data.error || 'Nieprawidłowe hasło');
@@ -33,11 +41,20 @@ function showLoginError(msg) {
   el.style.display = 'block';
 }
 
+function showAdminPanel() {
+  document.getElementById('landingView').style.display = 'none';
+  document.getElementById('loginPanel').style.display = 'none';
+  document.getElementById('adminPanel').style.display = 'block';
+  document.getElementById('loginToggleBtn').style.display = 'none';
+}
+
 function logout() {
   adminPassword = '';
   sessionStorage.removeItem('adminPwd');
-  document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('adminPanel').style.display = 'none';
+  document.getElementById('landingView').style.display = 'block';
+  document.getElementById('loginPanel').style.display = 'none';
+  document.getElementById('loginToggleBtn').style.display = 'inline-flex';
   document.getElementById('passwordInput').value = '';
 }
 
@@ -50,6 +67,7 @@ function loadAll() {
   loadResults();
 }
 
+// --- Sessions ---
 function loadSessions() {
   fetch('/api/sessions', { headers: authHeaders() })
     .then(r => r.json())
@@ -63,12 +81,12 @@ function loadSessions() {
 function renderSessions(sessions) {
   const el = document.getElementById('sessionsList');
   if (!sessions.length) {
-    el.innerHTML = '<div class="empty-state"><div class="icon">📂</div><div>Brak sesji. Kliknij „Generuj nową inspekcję" aby rozpocząć.</div></div>';
+    el.innerHTML = '<div class="empty-state"><div class="icon">📂</div><div>Brak sesji. Kliknij „Nowa inspekcja" aby rozpocząć.</div></div>';
     return;
   }
 
   let html = '<div class="table-wrap"><table><thead><tr>' +
-    '<th>Nazwa inspekcji</th><th>Data utworzenia</th><th>Status</th><th>Wyniki</th><th>Akcje</th>' +
+    '<th>Nazwa inspekcji</th><th>Data</th><th>Status</th><th>Wyniki</th><th>Akcje</th>' +
     '</tr></thead><tbody>';
 
   for (const s of sessions) {
@@ -76,11 +94,11 @@ function renderSessions(sessions) {
     const status = s.active
       ? '<span class="badge badge-pass">Aktywna</span>'
       : '<span class="badge badge-fail">Zakończona</span>';
-    const name = s.name ? escHtml(s.name) : `<code>${s.id}</code>`;
+    const name = s.name ? escHtml(s.name) : `<code style="font-size:0.8rem">${s.id}</code>`;
 
     html += `<tr>
-      <td>${name}</td>
-      <td>${date}</td>
+      <td><strong>${name}</strong></td>
+      <td style="font-size:0.85rem;white-space:nowrap;">${date}</td>
       <td>${status}</td>
       <td>${s.result_count} wynik(ów)</td>
       <td style="white-space:nowrap;">
@@ -95,6 +113,7 @@ function renderSessions(sessions) {
   el.innerHTML = html;
 }
 
+// --- Results ---
 function loadResults() {
   fetch('/api/results', { headers: authHeaders() })
     .then(r => r.json())
@@ -119,7 +138,7 @@ function renderResults(results) {
   }
 
   let html = '<div class="table-wrap"><table><thead><tr>' +
-    '<th>Imię i nazwisko</th><th>Jednostka</th><th>Kategoria</th><th>Wynik</th><th>%</th><th>Data</th><th>Sesja</th>' +
+    '<th>Sesja</th><th>Jednostka</th><th>Kategoria</th><th>Wynik</th><th>%</th><th>Data</th>' +
     '</tr></thead><tbody>';
 
   for (const r of results) {
@@ -127,15 +146,15 @@ function renderResults(results) {
     const passClass = pct >= 60 ? 'badge-pass' : 'badge-fail';
     const cat = CAT_LABELS[r.category] || r.category;
     const date = new Date(r.completed_at).toLocaleString('pl-PL');
+    const sessionName = r.session_name ? escHtml(r.session_name) : `<code>${r.session_id}</code>`;
 
     html += `<tr>
-      <td>${escHtml(r.participant_name)}</td>
+      <td style="font-size:0.85rem;">${sessionName}</td>
       <td>${escHtml(r.unit)}</td>
       <td>${cat}</td>
       <td>${r.score}/${r.total}</td>
       <td><span class="badge ${passClass}">${pct}%</span></td>
-      <td>${date}</td>
-      <td><code>${r.session_id}</code></td>
+      <td style="font-size:0.85rem;">${date}</td>
     </tr>`;
   }
 
@@ -143,7 +162,8 @@ function renderResults(results) {
   el.innerHTML = html;
 }
 
-function generateSession() {
+// --- New Session Modal ---
+function openNewSessionModal() {
   document.getElementById('sessionName').value = '';
   document.querySelectorAll('input[name="spec"]').forEach(cb => cb.checked = false);
   document.getElementById('newSessionError').style.display = 'none';
@@ -164,7 +184,6 @@ function submitNewSession() {
   }
 
   const specializations = [...document.querySelectorAll('input[name="spec"]:checked')].map(cb => cb.value);
-
   const btn = document.querySelector('[onclick="submitNewSession()"]');
   btn.disabled = true;
   btn.textContent = 'Generowanie...';
@@ -176,13 +195,14 @@ function submitNewSession() {
   })
     .then(r => r.json())
     .then(data => {
+      if (data.error) throw new Error(data.error);
       closeNewSessionModal();
       showQrModal(data);
       loadAll();
     })
-    .catch(() => {
+    .catch(e => {
       const el = document.getElementById('newSessionError');
-      el.textContent = 'Błąd podczas generowania sesji';
+      el.textContent = e.message || 'Błąd podczas generowania sesji';
       el.style.display = 'block';
     })
     .finally(() => {
@@ -191,41 +211,46 @@ function submitNewSession() {
     });
 }
 
+// --- QR Modal ---
+function showSessionQr(id) {
+  fetch(`/api/sessions/${id}/qr`, { headers: authHeaders() })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { alert('Błąd: ' + data.error); return; }
+      showQrModal(data);
+    })
+    .catch(() => alert('Błąd ładowania kodów QR'));
+}
+
 function showQrModal(data) {
-  const grid = document.getElementById('qrGrid');
-  document.getElementById('sessionInfo').textContent = data.name || `ID: ${data.id}`;
-  document.getElementById('qrModalTitle').textContent = data.name ? `📱 ${data.name}` : '📱 Kody QR';
+  const name = data.name || data.id;
+  document.getElementById('sessionInfo').textContent = name;
+  document.getElementById('qrModalTitle').textContent = `📱 ${name}`;
 
   const catLabels = {
-    kierowcy: { label: 'Kierowcy', desc: '15 pytań, 15 min', color: '#0a1628' },
-    dowodcy: { label: 'Dowódcy', desc: '15 pytań, 15 min', color: '#c0392b' },
+    kierowcy:              { label: 'Kierowcy',              desc: '15 pytań, 15 min', color: '#0a1628' },
+    dowodcy:               { label: 'Dowódcy',               desc: '15 pytań, 15 min', color: '#c0392b' },
     stanowiska_kierowania: { label: 'Stanowiska Kierowania', desc: '10 pytań, 10 min', color: '#27ae60' }
   };
 
   let html = '';
   for (const [cat, qr] of Object.entries(data.qrCodes)) {
     const info = catLabels[cat] || { label: qr.label, desc: '', color: '#333' };
+    const printUrl = `/print/${data.id}/${cat}?pwd=${encodeURIComponent(adminPassword)}`;
     html += `<div class="qr-item">
       <h4 style="color:${info.color}">${info.label}</h4>
       <p style="font-size:0.75rem;color:#666;margin-bottom:8px;">${info.desc}</p>
       <img src="${qr.dataUrl}" alt="QR ${info.label}">
       <div class="qr-url">${qr.url}</div>
+      <a href="${printUrl}" target="_blank" style="display:block;margin-top:8px;font-size:0.78rem;color:#c0392b;text-align:center;">🖨️ Drukuj test papierowy</a>
     </div>`;
   }
-  grid.innerHTML = html;
-
+  document.getElementById('qrGrid').innerHTML = html;
   document.getElementById('qrModal').classList.add('active');
 }
 
 function closeModal() {
   document.getElementById('qrModal').classList.remove('active');
-}
-
-function showSessionQr(id) {
-  fetch(`/api/sessions/${id}/qr`, { headers: authHeaders() })
-    .then(r => r.json())
-    .then(data => showQrModal(data))
-    .catch(() => alert('Błąd ładowania kodów QR'));
 }
 
 function closeSession(id) {
@@ -237,19 +262,23 @@ function closeSession(id) {
 
 function escHtml(str) {
   return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-// On page load, try auto-login from session storage
+// --- Init ---
 window.addEventListener('DOMContentLoaded', () => {
   const saved = sessionStorage.getItem('adminPwd');
   if (saved) {
-    document.getElementById('passwordInput').value = saved;
     adminPassword = saved;
-    doLogin();
+    fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: saved })
+    }).then(r => r.json()).then(data => {
+      if (data.ok) { showAdminPanel(); loadAll(); }
+      else sessionStorage.removeItem('adminPwd');
+    }).catch(() => {});
   }
 
   document.getElementById('passwordInput').addEventListener('keydown', e => {

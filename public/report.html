@@ -36,7 +36,7 @@
 
 <div class="print-btn-bar no-print">
   <button class="btn btn-gold" onclick="window.print()">🖨️ Drukuj raport</button>
-  <button class="btn btn-outline" style="color:white;border-color:white;" onclick="window.close()">✕ Zamknij</button>
+  <button class="btn btn-outline" style="color:white;border-color:white;" onclick="if(window.opener){window.close()}else{window.location.href='/'}">← Wróć</button>
   <span style="color:rgba(255,255,255,0.7);font-size:0.85rem;margin-left:auto;">PSP – Raport inspekcji</span>
 </div>
 
