@@ -83,7 +83,7 @@ function renderSessions(sessions) {
       <td>${status}</td>
       <td>${s.result_count} wynik(ów)</td>
       <td style="white-space:nowrap;">
-        <a href="/report/${s.id}" target="_blank" class="btn btn-gold btn-sm">📄 Raport</a>
+        <a href="/report/${s.id}?pwd=${encodeURIComponent(adminPassword)}" target="_blank" class="btn btn-gold btn-sm">📄 Raport</a>
         ${s.active ? `<button class="btn btn-outline btn-sm" onclick="closeSession('${s.id}')">🔒 Zamknij</button>` : ''}
       </td>
     </tr>`;
